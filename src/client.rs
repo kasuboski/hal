@@ -1,0 +1,130 @@
+//! Client implementation for the HAL crate
+//!
+//! This module provides the main client interface for interacting with the Gemini API.
+
+use crate::batches::BatchesService;
+use crate::caches::CachesService;
+use crate::chats::ChatsService;
+// Error and Result are used in the panic message
+use crate::files::FilesService;
+use crate::http::HttpClient;
+use crate::models::ModelsService;
+use crate::tunings::TuningsService;
+use crate::types::HttpOptions;
+
+/// Client for the Gemini API
+///
+/// This is the main entry point for interacting with the Gemini API.
+/// It provides access to the various services for models, chats, files, etc.
+#[derive(Clone)]
+pub struct Client {
+    http_client: HttpClient,
+    vertexai: bool,
+}
+
+impl Client {
+    /// Create a new client with an API key for the Gemini Developer API
+    pub fn with_api_key(api_key: impl Into<String>) -> Self {
+        let http_client = HttpClient::with_api_key(api_key.into());
+        Self {
+            http_client,
+            vertexai: false,
+        }
+    }
+
+    /// Create a new client for Vertex AI
+    ///
+    /// This requires GCP authentication to be set up in the environment.
+    pub fn with_vertex_ai(project_id: impl Into<String>, location: impl Into<String>) -> Self {
+        let http_client = HttpClient::with_vertex_ai(project_id.into(), location.into());
+        Self {
+            http_client,
+            vertexai: true,
+        }
+    }
+
+    /// Create a new client with custom HTTP options
+    pub fn with_options(
+        api_key: Option<String>,
+        project_id: Option<String>,
+        location: Option<String>,
+        options: HttpOptions,
+    ) -> Self {
+        // Check if project_id is Some before using it in pattern matching to avoid moving it
+        let is_vertex = project_id.is_some();
+        
+        let http_client = if let Some(api_key) = api_key {
+            HttpClient::with_api_key_and_options(api_key, options)
+        } else if is_vertex && location.is_some() {
+            // Safe to unwrap here since we've checked both are Some
+            HttpClient::with_vertex_ai_and_options(project_id.unwrap(), location.unwrap(), options)
+        } else {
+            panic!("Either API key or project_id and location must be provided");
+        };
+
+        Self {
+            http_client,
+            vertexai: is_vertex,
+        }
+    }
+
+    /// Access the models service
+    pub fn models(&self) -> ModelsService {
+        ModelsService::new(self.http_client.clone(), self.vertexai)
+    }
+
+    /// Access the chats service
+    pub fn chats(&self) -> ChatsService {
+        ChatsService::new(self.http_client.clone(), self.vertexai)
+    }
+
+    /// Access the files service
+    pub fn files(&self) -> FilesService {
+        if !self.vertexai {
+            FilesService::new(self.http_client.clone())
+        } else {
+            panic!("Files service is only available for Gemini Developer API");
+        }
+    }
+
+    /// Access the tunings service
+    pub fn tunings(&self) -> TuningsService {
+        TuningsService::new(self.http_client.clone(), self.vertexai)
+    }
+
+    /// Access the caches service
+    pub fn caches(&self) -> CachesService {
+        CachesService::new(self.http_client.clone(), self.vertexai)
+    }
+
+    /// Access the batches service
+    pub fn batches(&self) -> BatchesService {
+        if self.vertexai {
+            BatchesService::new(self.http_client.clone())
+        } else {
+            panic!("Batches service is only available for Vertex AI");
+        }
+    }
+
+    /// Check if this client is using Vertex AI
+    pub fn is_vertex_ai(&self) -> bool {
+        self.vertexai
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_creation_with_api_key() {
+        let client = Client::with_api_key("test-api-key");
+        assert!(!client.is_vertex_ai());
+    }
+
+    #[test]
+    fn test_client_creation_with_vertex_ai() {
+        let client = Client::with_vertex_ai("test-project", "us-central1");
+        assert!(client.is_vertex_ai());
+    }
+}
