@@ -3,6 +3,7 @@ use hal::prelude::{Result, Content, Part};
 use std::io::{self, Write};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use std::sync::Mutex;
+use hal::format_markdown;
 
 // Create a global colorized stdout writer
 lazy_static::lazy_static! {
@@ -89,7 +90,7 @@ async fn main() -> Result<()> {
                 let response_text = response.text();
                 print_colored("AI", Color::Blue, true);
                 print_colored(": ", Color::White, true);
-                print_colored(&response_text, Color::White, false);
+                format_markdown(&response_text)?;
                 println!();
                 
                 // Add AI response to history

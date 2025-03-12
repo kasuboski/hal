@@ -46,6 +46,10 @@ pub enum Error {
     #[error("Operation not supported: {0}")]
     Unsupported(String),
 
+    /// Markdown parsing or formatting error
+    #[error("Markdown error: {0}")]
+    Markdown(#[from] std::io::Error),
+
     /// Other errors
     #[error("{0}")]
     Other(String),

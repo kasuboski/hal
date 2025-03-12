@@ -38,9 +38,11 @@
 
 mod error;
 mod gemini;
+mod markdown;
 
 pub use gemini::Client;
 pub use error::Error;
+pub use markdown::format_markdown;
 
 /// Re-export of types module for public use
 pub mod prelude {
