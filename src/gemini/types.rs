@@ -18,6 +18,12 @@ pub struct Content {
     pub parts: Vec<Part>,
 }
 
+impl Default for Content {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Content {
     /// Create a new empty content
     pub fn new() -> Self {

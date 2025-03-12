@@ -72,7 +72,7 @@ impl ChatsService {
             http_client: self.http_client.clone(),
             is_vertex: self.is_vertex,
             generation_config: config,
-            safety_settings: safety_settings,
+            safety_settings,
         })
     }
 }
