@@ -2,15 +2,15 @@
 //!
 //! This module provides the main client interface for interacting with the Gemini API.
 
-use crate::batches::BatchesService;
-use crate::caches::CachesService;
-use crate::chats::ChatsService;
+use crate::gemini::batches::BatchesService;
+use crate::gemini::caches::CachesService;
+use crate::gemini::chats::ChatsService;
 // Error and Result are used in the panic message
-use crate::files::FilesService;
-use crate::http::HttpClient;
-use crate::models::ModelsService;
-use crate::tunings::TuningsService;
-use crate::types::HttpOptions;
+use crate::gemini::files::FilesService;
+use crate::gemini::http::HttpClient;
+use crate::gemini::models::ModelsService;
+use crate::gemini::tunings::TuningsService;
+use crate::gemini::types::HttpOptions;
 
 /// Client for the Gemini API
 ///

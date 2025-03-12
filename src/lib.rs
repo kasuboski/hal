@@ -36,23 +36,13 @@
 //! }
 //! ```
 
-mod client;
 mod error;
-mod models;
-mod types;
-mod chats;
-mod files;
-mod tunings;
-mod caches;
-mod batches;
-mod http;
+mod gemini;
 
-pub use client::Client;
+pub use gemini::Client;
 pub use error::Error;
 
 /// Re-export of types module for public use
 pub mod prelude {
-    pub use crate::types::*;
-    pub use crate::error::Error;
-    pub use crate::error::Result;
+    pub use crate::gemini::prelude::*;
 }

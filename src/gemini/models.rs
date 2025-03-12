@@ -4,8 +4,8 @@
 //! including content generation, embedding, and token counting.
 
 use crate::error::Result;
-use crate::http::HttpClient;
-use crate::types::{Content, CountTokensResponse, EmbedContentResponse, GenerateContentResponse, GenerationConfig, SafetySetting};
+use crate::gemini::types::{Content, CountTokensResponse, EmbedContentResponse, GenerateContentResponse, GenerationConfig, SafetySetting};
+use crate::gemini::http::HttpClient;
 use async_trait::async_trait;
 use serde::Serialize;
 use tracing::{debug, instrument};

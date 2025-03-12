@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality for managing model tunings.
 
-use crate::http::HttpClient;
+use crate::gemini::http::HttpClient;
 
 /// Service for managing model tunings
 #[derive(Clone)]

@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality for managing batch operations in Vertex AI.
 
-use crate::http::HttpClient;
+use crate::gemini::http::HttpClient;
 
 /// Service for managing batch operations
 #[derive(Clone)]

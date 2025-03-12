@@ -3,7 +3,7 @@
 //! This module provides the HTTP client for making requests to the Gemini API.
 
 use crate::error::{Error, Result};
-use crate::types::HttpOptions;
+use crate::gemini::types::HttpOptions;
 use reqwest::{Client as ReqwestClient, RequestBuilder, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;

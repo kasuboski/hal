@@ -3,8 +3,8 @@
 //! This module provides functionality for multi-turn conversations with Gemini models.
 
 use crate::error::Result;
-use crate::http::HttpClient;
-use crate::types::{Content, GenerateContentResponse, GenerationConfig, SafetySetting};
+use crate::gemini::http::HttpClient;
+use crate::gemini::types::{Content, GenerateContentResponse, GenerationConfig, SafetySetting};
 use serde::Serialize;
 use tracing::{debug, instrument};
 

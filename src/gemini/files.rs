@@ -4,7 +4,7 @@
 //! Files can be uploaded, retrieved, and deleted.
 
 use crate::error::Result;
-use crate::http::HttpClient;
+use crate::gemini::http::HttpClient;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, instrument};
 use base64::Engine;
@@ -117,7 +117,7 @@ impl FilesService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::HttpClient;
+    use crate::{gemini::http::HttpClient, prelude::HttpOptions};
     use mockito::Server;
     
     #[tokio::test]
@@ -133,7 +133,7 @@ mod tests {
         
         let client = HttpClient::with_api_key_and_options(
             "test-key".to_string(),
-            crate::types::HttpOptions {
+            HttpOptions {
                 api_version: "v1beta".to_string(),
                 headers: std::collections::HashMap::new(),
             },
@@ -167,7 +167,7 @@ mod tests {
         
         let client = HttpClient::with_api_key_and_options(
             "test-key".to_string(),
-            crate::types::HttpOptions {
+            HttpOptions {
                 api_version: "v1beta".to_string(),
                 headers: std::collections::HashMap::new(),
             },
@@ -201,7 +201,7 @@ mod tests {
         
         let client = HttpClient::with_api_key_and_options(
             "test-key".to_string(),
-            crate::types::HttpOptions {
+            HttpOptions {
                 api_version: "v1beta".to_string(),
                 headers: std::collections::HashMap::new(),
             },
