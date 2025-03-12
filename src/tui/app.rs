@@ -158,7 +158,7 @@ impl App {
         
         if lines < 0 {
             // Scrolling up
-            let up_amount = lines.abs() as usize;
+            let up_amount = lines.unsigned_abs() as usize;
             if self.line_scroll >= up_amount {
                 self.line_scroll -= up_amount;
             } else {

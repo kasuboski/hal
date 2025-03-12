@@ -43,7 +43,7 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
                     Tag::Paragraph => {
                         // Start a new paragraph
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                     },
                     Tag::Strong => {
@@ -62,7 +62,7 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
                         
                         // Add a blank line before code blocks
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                         lines.push(Line::from(""));
                         
@@ -102,13 +102,13 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
                     TagEnd::Heading(_) => {
                         current_style = Style::default();
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                         lines.push(Line::from(""));
                     },
                     TagEnd::Paragraph => {
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                         lines.push(Line::from(""));
                     },
@@ -121,7 +121,7 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
                     TagEnd::BlockQuote(_) => {
                         current_style = Style::default();
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                         lines.push(Line::from(""));
                     },
@@ -129,20 +129,20 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
                         _in_code_block = false;
                         current_style = Style::default();
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                         lines.push(Line::from(""));
                     },
                     TagEnd::List(_) => {
                         list_level -= 1;
                         if list_level == 0 && !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                             lines.push(Line::from(""));
                         }
                     },
                     TagEnd::Item => {
                         if !current_line.is_empty() {
-                            lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                            lines.push(Line::from(std::mem::take(&mut current_line)));
                         }
                     },
                     TagEnd::Link => {
@@ -157,7 +157,7 @@ pub fn markdown_to_ratatui_text(markdown: &str) -> Text<'static> {
             },
             Event::HardBreak => {
                 if !current_line.is_empty() {
-                    lines.push(Line::from(current_line.drain(..).collect::<Vec<_>>()));
+                    lines.push(Line::from(std::mem::take(&mut current_line)));
                 }
             },
             _ => {},
