@@ -15,6 +15,7 @@ use ratatui::{
 };
 use hal::Client;
 use hal::prelude::Result;
+use tokio::sync::mpsc;
 
 use crate::tui::app::App;
 use crate::tui::ui::draw;
@@ -43,13 +44,18 @@ pub async fn run(api_key: String) -> Result<()> {
         "# Welcome to HAL Chat\n\n* Type your messages and press Enter to send.\n* Press Esc or Ctrl+C to exit.\n* Use arrow keys to navigate history."
     );
 
+    // Create a channel for LLM responses
+    let (tx, mut rx) = mpsc::channel(32);
+
     // Main loop
-    let tick_rate = Duration::from_millis(100);
+    let tick_rate = Duration::from_millis(50);
     let mut last_tick = Instant::now();
     
     loop {
+        // Draw the UI on every iteration
         terminal.draw(|f| draw(f, &app))?;
 
+        // Handle events with timeout
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
@@ -69,27 +75,25 @@ pub async fn run(api_key: String) -> Result<()> {
                             // Add user message to history
                             app.add_message("user", &input);
                             
-                            // Reset input field
+                            // Reset input field and set loading state
                             app.reset_input();
+                            app.is_loading = true;
                             
-                            // Redraw UI to show user message
-                            terminal.draw(|f| draw(f, &app))?;
+                            // Clone necessary values for the async task
+                            let chat = chat.clone();
+                            let tx = tx.clone();
+                            let message_history = app.message_history.clone();
                             
-                            // Send message to LLM and get response
-                            match chat.send_message(&input, Some(app.message_history.clone().into_iter()
-                                .filter(|content| {
-                                    // Only include user and model messages, filter out ui messages
-                                    content.role.as_deref().unwrap_or("") != "ui"
-                                })
-                                .collect())).await {
-                                Ok(response) => {
-                                    let response_text = response.text();
-                                    app.add_message("model", &response_text);
-                                },
-                                Err(e) => {
-                                    app.add_message("model", &format!("Error: {}", e));
-                                }
-                            }
+                            // Spawn the LLM request in the background
+                            tokio::spawn(async move {
+                                let result = chat.send_message(&input, Some(message_history.into_iter()
+                                    .filter(|content| {
+                                        // Only include user and model messages, filter out ui messages
+                                        content.role.as_deref().unwrap_or("") != "ui"
+                                    })
+                                    .collect())).await;
+                                let _ = tx.send(result).await;
+                            });
                         }
                     }
                     KeyCode::Char(c) => {
@@ -117,8 +121,25 @@ pub async fn run(api_key: String) -> Result<()> {
                 }
             }
         }
+
+        // Check for LLM responses
+        if let Ok(response) = rx.try_recv() {
+            match response {
+                Ok(response) => {
+                    let response_text = response.text();
+                    app.is_loading = false;
+                    app.add_message("model", &response_text);
+                },
+                Err(e) => {
+                    app.is_loading = false;
+                    app.add_message("model", &format!("Error: {}", e));
+                }
+            }
+        }
         
+        // Check if we should tick
         if last_tick.elapsed() >= tick_rate {
+            app.tick_spinner();
             last_tick = Instant::now();
         }
         

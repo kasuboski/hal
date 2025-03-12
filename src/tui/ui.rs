@@ -9,6 +9,8 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::tui::app::App;
 
+const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
+
 /// Draw the UI
 pub fn draw(f: &mut Frame, app: &App) {
     // Create main layout
@@ -112,6 +114,24 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
             f.render_widget(Paragraph::new(separator), separator_area);
             current_y += 1;
         }
+    }
+
+    // Show spinner if loading
+    if app.is_loading && current_y < inner_area.height {
+        let spinner_area = Rect {
+            y: inner_area.y + current_y,
+            height: 1,
+            ..inner_area
+        };
+
+        let spinner_line = Line::from(vec![
+            Span::styled(
+                format!("{} Thinking...", SPINNER_FRAMES[app.spinner_frame]),
+                Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
+            )
+        ]);
+
+        f.render_widget(Paragraph::new(spinner_line), spinner_area);
     }
 }
 

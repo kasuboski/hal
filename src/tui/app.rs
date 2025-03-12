@@ -16,6 +16,10 @@ pub struct App {
     pub should_quit: bool,
     /// Rendered messages for display
     pub rendered_messages: Vec<(String, Text<'static>)>, // (role, rendered_text)
+    /// Flag to indicate if we're waiting for LLM response
+    pub is_loading: bool,
+    /// Counter for spinner animation frames
+    pub spinner_frame: usize,
 }
 
 impl App {
@@ -28,6 +32,8 @@ impl App {
             chat_scroll: 0,
             should_quit: false,
             rendered_messages: Vec::new(),
+            is_loading: false,
+            spinner_frame: 0,
         }
     }
     
@@ -97,5 +103,12 @@ impl App {
     /// Scroll chat history down
     pub fn scroll_down(&mut self) {
         self.chat_scroll += 1;
+    }
+    
+    /// Update spinner frame
+    pub fn tick_spinner(&mut self) {
+        if self.is_loading {
+            self.spinner_frame = (self.spinner_frame + 1) % 8;
+        }
     }
 } 
