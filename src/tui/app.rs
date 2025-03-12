@@ -142,12 +142,17 @@ impl App {
     
     /// Scroll chat history down
     pub fn scroll_down(&mut self) {
-        // Scroll by 3 lines at a time for smoother scrolling
-        self.line_scroll += 3;
+        let total_height = self.calculate_total_height();
+        // Only scroll if there's more content below
+        if self.line_scroll + 3 < total_height {
+            self.line_scroll += 3;
+        }
     }
     
     /// Scroll by a specific number of lines (positive = down, negative = up)
     pub fn scroll_by(&mut self, lines: i32) {
+        let total_height = self.calculate_total_height();
+        
         if lines < 0 {
             // Scrolling up
             let up_amount = lines.abs() as usize;
@@ -157,9 +162,26 @@ impl App {
                 self.line_scroll = 0;
             }
         } else {
-            // Scrolling down
-            self.line_scroll += lines as usize;
+            // Scrolling down - ensure we don't scroll past the content
+            let down_amount = lines as usize;
+            let max_scroll = total_height.saturating_sub(1); // Keep at least one line visible
+            self.line_scroll = (self.line_scroll + down_amount).min(max_scroll);
         }
+    }
+    
+    /// Ensure scroll position is valid for current viewport
+    pub fn clamp_scroll(&mut self, viewport_height: usize) {
+        let total_height = self.calculate_total_height();
+        
+        // If content fits in viewport, reset scroll to top
+        if total_height <= viewport_height {
+            self.line_scroll = 0;
+            return;
+        }
+        
+        // Otherwise ensure scroll position shows as much content as possible
+        let max_scroll = total_height.saturating_sub(viewport_height);
+        self.line_scroll = self.line_scroll.min(max_scroll);
     }
     
     /// Update spinner frame

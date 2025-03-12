@@ -57,13 +57,29 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         }
     }
     
+    // Reset total height for second pass
+    total_height = 0;
+    
     // Second pass: render visible messages
     for (i, (role, text)) in app.rendered_messages.iter().enumerate().skip(start_message) {
+        let message_height = text.height() as u16 + 2; // +2 for role line and separator
+        
+        // Skip if this message would start beyond our viewport
+        if total_height >= inner_area.height {
+            break;
+        }
+        
         let role_style = match role.as_str() {
             "user" => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
             "model" => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         };
+        
+        // Calculate the visible portion of this message
+        let visible_height = message_height.min(inner_area.height.saturating_sub(total_height));
+        if visible_height == 0 {
+            break;
+        }
         
         // Render role indicator
         let role_text = match role.as_str() {
@@ -75,20 +91,13 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         let role_span = Span::styled(format!("{}: ", role_text), role_style);
         let role_line = Line::from(vec![role_span]);
         
-        // Calculate message height
-        let message_height = text.height() as u16 + 1; // +1 for the role line
-        
         // Create a sub-area for this message
         let message_area = Rect {
             x: inner_area.x,
-            y: inner_area.y + current_y,
+            y: inner_area.y + total_height,
             width: inner_area.width,
-            height: message_height.min(inner_area.height.saturating_sub(current_y)),
+            height: visible_height,
         };
-        
-        if message_area.height == 0 {
-            break; // No more space to render messages
-        }
         
         // Render role line
         let role_area = Rect {
@@ -110,13 +119,13 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
             content_area,
         );
         
-        // Update current_y for next message
-        current_y += message_height;
+        // Update total_height
+        total_height += visible_height;
         
         // Add separator between messages
-        if current_y < inner_area.height && i < app.rendered_messages.len() - 1 {
+        if total_height < inner_area.height && i < app.rendered_messages.len() - 1 {
             let separator_area = Rect {
-                y: inner_area.y + current_y,
+                y: inner_area.y + total_height,
                 height: 1,
                 ..inner_area
             };
@@ -127,7 +136,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
             )]);
             
             f.render_widget(Paragraph::new(separator), separator_area);
-            current_y += 1;
+            total_height += 1;
         }
     }
 

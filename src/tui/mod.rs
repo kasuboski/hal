@@ -65,72 +65,79 @@ pub async fn run(api_key: String) -> Result<()> {
 
         // Handle input events
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Esc => {
-                        app.should_quit = true;
-                    }
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        app.should_quit = true;
-                    }
-                    KeyCode::Enter => {
-                        let input = app.input.trim().to_string();
-                        if !input.is_empty() {
-                            // Update state: Add user message
-                            app.add_message("user", &input);
-                            app.scroll_to_show_latest(viewport_height);
-                            app.reset_input();
-                            app.is_loading = true;
-                            
-                            // Side effect: Send message to LLM
-                            let chat = chat.clone();
-                            let tx = tx.clone();
-                            let message_history = app.message_history.clone();
-                            
-                            tokio::spawn(async move {
-                                let result = chat.send_message(&input, Some(message_history.into_iter()
-                                    .filter(|content| {
-                                        // Only include user and model messages, filter out ui messages
-                                        content.role.as_deref().unwrap_or("") != "ui"
-                                    })
-                                    .collect())).await;
-                                let _ = tx.send(result).await;
-                            });
+            match event::read()? {
+                Event::Key(key) => {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.should_quit = true;
                         }
+                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.should_quit = true;
+                        }
+                        KeyCode::Enter => {
+                            let input = app.input.trim().to_string();
+                            if !input.is_empty() {
+                                // Update state: Add user message
+                                app.add_message("user", &input);
+                                app.scroll_to_show_latest(viewport_height);
+                                app.reset_input();
+                                app.is_loading = true;
+                                
+                                // Side effect: Send message to LLM
+                                let chat = chat.clone();
+                                let tx = tx.clone();
+                                let message_history = app.message_history.clone();
+                                
+                                tokio::spawn(async move {
+                                    let result = chat.send_message(&input, Some(message_history.into_iter()
+                                        .filter(|content| {
+                                            content.role.as_deref().unwrap_or("") != "ui"
+                                        })
+                                        .collect())).await;
+                                    let _ = tx.send(result).await;
+                                });
+                            }
+                        }
+                        KeyCode::Char(c) => {
+                            app.insert_char(c);
+                        }
+                        KeyCode::Backspace => {
+                            app.backspace();
+                        }
+                        KeyCode::Delete => {
+                            app.delete_char();
+                        }
+                        KeyCode::Left => {
+                            app.move_cursor_left();
+                        }
+                        KeyCode::Right => {
+                            app.move_cursor_right();
+                        }
+                        KeyCode::Up => {
+                            app.scroll_up();
+                        }
+                        KeyCode::Down => {
+                            app.scroll_down();
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char(c) => {
-                        app.insert_char(c);
-                    }
-                    KeyCode::Backspace => {
-                        app.backspace();
-                    }
-                    KeyCode::Delete => {
-                        app.delete_char();
-                    }
-                    KeyCode::Left => {
-                        app.move_cursor_left();
-                    }
-                    KeyCode::Right => {
-                        app.move_cursor_right();
-                    }
-                    KeyCode::Up => {
-                        app.scroll_up();
-                    }
-                    KeyCode::Down => {
-                        app.scroll_down();
-                    }
-                    _ => {}
                 }
-            } else if let Event::Mouse(event) = event::read()? {
-                match event.kind {
-                    event::MouseEventKind::ScrollUp => {
-                        app.scroll_by(-5); // Scroll up 5 lines per mouse wheel tick
+                Event::Mouse(event) => {
+                    match event.kind {
+                        event::MouseEventKind::ScrollUp => {
+                            app.scroll_by(-5); // Scroll up 5 lines per mouse wheel tick
+                        }
+                        event::MouseEventKind::ScrollDown => {
+                            app.scroll_by(5);  // Scroll down 5 lines per mouse wheel tick
+                        }
+                        _ => {}
                     }
-                    event::MouseEventKind::ScrollDown => {
-                        app.scroll_by(5);  // Scroll down 5 lines per mouse wheel tick
-                    }
-                    _ => {}
                 }
+                Event::Resize(_, _) => {
+                    // When terminal is resized, ensure scroll position is still valid
+                    app.clamp_scroll(viewport_height);
+                }
+                _ => {}
             }
         }
 
