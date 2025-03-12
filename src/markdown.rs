@@ -95,7 +95,7 @@ impl FormatState {
                             let mut lang_spec = ColorSpec::new();
                             lang_spec.set_fg(Some(Color::Blue)).set_italic(true);
                             stdout.set_color(&lang_spec).map_err(Error::Markdown)?;
-                            write!(stdout, "[{}]\n", lang).map_err(Error::Markdown)?;
+                            writeln!(stdout, "[{}]", lang).map_err(Error::Markdown)?;
                             stdout.set_color(&spec).map_err(Error::Markdown)?
                         }
                     },
