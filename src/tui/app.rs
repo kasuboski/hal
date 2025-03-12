@@ -78,8 +78,9 @@ impl App {
             return;
         }
         
-        // Otherwise, scroll to show the latest content while keeping as much context visible as possible
-        self.line_scroll = total_height.saturating_sub(viewport_height);
+        // Otherwise, scroll to show the latest content
+        // Set scroll position to show the bottom of the content
+        self.line_scroll = total_height.saturating_sub(viewport_height / 2);
     }
     
     /// Scroll to the bottom of the chat history
@@ -144,6 +145,8 @@ impl App {
     pub fn scroll_down(&mut self) {
         let total_height = self.calculate_total_height();
         // Only scroll if there's more content below
+        // Calculate the maximum scroll position based on total content height
+        // We don't need to subtract viewport height here since that's handled in the rendering
         if self.line_scroll + 3 < total_height {
             self.line_scroll += 3;
         }
@@ -164,6 +167,7 @@ impl App {
         } else {
             // Scrolling down - ensure we don't scroll past the content
             let down_amount = lines as usize;
+            // Don't subtract viewport height here - that's handled in rendering
             let max_scroll = total_height.saturating_sub(1); // Keep at least one line visible
             self.line_scroll = (self.line_scroll + down_amount).min(max_scroll);
         }

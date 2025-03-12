@@ -47,25 +47,36 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
     
     // First pass: calculate total height and find which messages to render
     let mut start_message = 0;
+    let mut accumulated_height: u16 = 0;
     for (i, (_, text)) in app.rendered_messages.iter().enumerate() {
         let message_height = text.height() as u16 + 2; // +2 for role line and separator
-        if total_height + message_height <= app.line_scroll as u16 {
-            start_message = i + 1;
-            total_height += message_height;
-        } else {
+        
+        // If we haven't scrolled past this message yet, it's our starting point
+        if accumulated_height + message_height > app.line_scroll as u16 {
+            start_message = i;
+            // Remember how many lines we've scrolled into this message
+            total_height = accumulated_height;
             break;
+        }
+        
+        accumulated_height += message_height;
+        
+        // If we've scrolled past this message entirely, it becomes our start
+        if accumulated_height <= app.line_scroll as u16 {
+            start_message = i + 1;
+            total_height = accumulated_height;
         }
     }
     
-    // Reset total height for second pass
-    total_height = 0;
+    // Reset current_y for second pass
+    current_y = 0;
     
     // Second pass: render visible messages
     for (i, (role, text)) in app.rendered_messages.iter().enumerate().skip(start_message) {
         let message_height = text.height() as u16 + 2; // +2 for role line and separator
         
         // Skip if this message would start beyond our viewport
-        if total_height >= inner_area.height {
+        if current_y >= inner_area.height {
             break;
         }
         
@@ -76,7 +87,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         };
         
         // Calculate the visible portion of this message
-        let visible_height = message_height.min(inner_area.height.saturating_sub(total_height));
+        let visible_height = message_height.min(inner_area.height.saturating_sub(current_y));
         if visible_height == 0 {
             break;
         }
@@ -94,7 +105,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         // Create a sub-area for this message
         let message_area = Rect {
             x: inner_area.x,
-            y: inner_area.y + total_height,
+            y: inner_area.y + current_y,
             width: inner_area.width,
             height: visible_height,
         };
@@ -119,13 +130,13 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
             content_area,
         );
         
-        // Update total_height
-        total_height += visible_height;
+        // Update current_y
+        current_y += visible_height;
         
         // Add separator between messages
-        if total_height < inner_area.height && i < app.rendered_messages.len() - 1 {
+        if current_y < inner_area.height && i < app.rendered_messages.len() - 1 {
             let separator_area = Rect {
-                y: inner_area.y + total_height,
+                y: inner_area.y + current_y,
                 height: 1,
                 ..inner_area
             };
@@ -136,7 +147,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
             )]);
             
             f.render_widget(Paragraph::new(separator), separator_area);
-            total_height += 1;
+            current_y += 1;
         }
     }
 
