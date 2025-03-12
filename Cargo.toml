@@ -16,6 +16,7 @@ async-trait = "0.1"
 url = "2.3"
 base64 = "0.21"
 futures = "0.3"
+uuid = { version = "1.15.1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 mockito = "1.0"

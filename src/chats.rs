@@ -8,11 +8,11 @@ use crate::types::{Content, GenerateContentResponse, GenerationConfig, SafetySet
 use serde::Serialize;
 use tracing::{debug, instrument};
 
-/// Request for creating a chat session
+/// Request for sending a message in a chat
 #[derive(Debug, Serialize)]
-struct CreateChatRequest {
-    /// Model to use for the chat
-    model: String,
+struct SendMessageRequest {
+    /// The message content
+    contents: Vec<Content>,
     
     /// Generation configuration
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -21,13 +21,6 @@ struct CreateChatRequest {
     /// Safety settings
     #[serde(skip_serializing_if = "Option::is_none")]
     safety_settings: Option<Vec<SafetySetting>>,
-}
-
-/// Request for sending a message in a chat
-#[derive(Debug, Serialize)]
-struct SendMessageRequest {
-    /// The message content
-    content: Content,
 }
 
 /// Service for chat sessions
@@ -68,27 +61,18 @@ impl ChatsService {
     ) -> Result<ChatSession> {
         let model = model.into();
         
-        let request = CreateChatRequest {
-            model: model.clone(),
-            generation_config: config,
-            safety_settings,
-        };
-        
-        let path = "chats";
-        
         debug!("Creating chat session with model {}", model);
-        let response = self.http_client.post::<serde_json::Value, _>(path, &request, self.is_vertex).await?;
         
-        // Extract chat ID from response
-        let chat_id = response["name"]
-            .as_str()
-            .ok_or_else(|| crate::error::Error::UnexpectedResponse("Missing chat ID in response".to_string()))?;
+        // Generate a unique chat ID instead of making an HTTP call
+        let chat_id = format!("chats/{}", uuid::Uuid::new_v4());
         
         Ok(ChatSession {
-            chat_id: chat_id.to_string(),
+            chat_id,
             model,
             http_client: self.http_client.clone(),
             is_vertex: self.is_vertex,
+            generation_config: config,
+            safety_settings: safety_settings,
         })
     }
 }
@@ -107,6 +91,12 @@ pub struct ChatSession {
     
     /// Whether this session is using Vertex AI
     is_vertex: bool,
+    
+    /// Generation configuration
+    generation_config: Option<GenerationConfig>,
+    
+    /// Safety settings
+    safety_settings: Option<Vec<SafetySetting>>,
 }
 
 impl ChatSession {
@@ -115,17 +105,23 @@ impl ChatSession {
     pub async fn send_message(
         &self,
         message: impl Into<String> + std::fmt::Debug,
+        history: Option<Vec<Content>>,
     ) -> Result<GenerateContentResponse> {
         let content = Content::new().with_role("user").with_text(message.into());
         
+        let mut contents = history.unwrap_or_default();
+        contents.push(content);
+        
         let request = SendMessageRequest {
-            content,
+            contents,
+            generation_config: self.generation_config.clone(),
+            safety_settings: self.safety_settings.clone(),
         };
         
-        // The chat_id already contains the 'chats/' prefix, so we don't need to add it again
-        let path = format!("{}/messages", self.chat_id);
+        // Use the model name directly in the path for the API request
+        let path = format!("models/{}:generateContent", self.model);
         
-        debug!("Sending message in chat {}", self.chat_id);
+        debug!("Sending message using model {} in chat {}", self.model, self.chat_id);
         self.http_client.post(&path, &request, self.is_vertex).await
     }
 }
@@ -137,33 +133,9 @@ mod tests {
     use mockito::Server;
     
     #[tokio::test]
-    async fn test_create_chat() {
-        let mut server = Server::new_async().await;
-        let mock_server = server.mock("POST", "/v1beta/chats")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"{
-                "name": "chats/test-chat-id"
-            }"#)
-            .match_query(mockito::Matcher::Any)
-            .expect(1)
-            .create_async().await;
-            
-        let mut http_client = HttpClient::with_api_key("test-key".to_string());
-        http_client.set_base_url(server.url());
-        
-        let chats_service = ChatsService::new(http_client, false);
-        
-        let chat = chats_service.create("gemini-pro").await.unwrap();
-        assert_eq!(chat.chat_id, "chats/test-chat-id");
-        
-        mock_server.assert_async().await;
-    }
-    
-    #[tokio::test]
     async fn test_send_message() {
         let mut server = Server::new_async().await;
-        let mock_server = server.mock("POST", "/v1beta/chats/test-chat-id/messages")
+        let mock_server = server.mock("POST", "/v1beta/models/gemini-pro:generateContent")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(r#"{
@@ -187,9 +159,11 @@ mod tests {
             model: "gemini-pro".to_string(),
             http_client,
             is_vertex: false,
+            generation_config: None,
+            safety_settings: None,
         };
         
-        let response = chat.send_message("Hello").await.unwrap();
+        let response = chat.send_message("Hello", None).await.unwrap();
         assert_eq!(response.text(), "Response text");
         
         mock_server.assert_async().await;
