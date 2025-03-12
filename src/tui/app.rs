@@ -10,8 +10,8 @@ pub struct App {
     pub input: String,
     /// Cursor position in the input field
     pub cursor_position: usize,
-    /// Scroll position in the chat history
-    pub chat_scroll: usize,
+    /// Scroll position in the chat history (in lines)
+    pub line_scroll: usize,
     /// Flag to indicate if the application should quit
     pub should_quit: bool,
     /// Rendered messages for display
@@ -29,7 +29,7 @@ impl App {
             message_history: Vec::new(),
             input: String::new(),
             cursor_position: 0,
-            chat_scroll: 0,
+            line_scroll: 0,
             should_quit: false,
             rendered_messages: Vec::new(),
             is_loading: false,
@@ -50,6 +50,43 @@ impl App {
         // Also add to rendered messages for display
         let rendered_text = markdown_to_ratatui_text(text);
         self.rendered_messages.push((role.to_string(), rendered_text));
+
+        // Auto-scroll to the bottom when a new message is added
+        self.scroll_to_bottom();
+    }
+    
+    /// Calculate total height of all messages
+    fn calculate_total_height(&self) -> usize {
+        self.rendered_messages.iter()
+            .map(|(_, text)| text.height() + 2) // +2 for role line and separator
+            .sum()
+    }
+    
+    /// Scroll to show the latest content, given the available viewport height
+    pub fn scroll_to_show_latest(&mut self, viewport_height: usize) {
+        if self.rendered_messages.is_empty() {
+            self.line_scroll = 0;
+            return;
+        }
+        
+        // Calculate total height
+        let total_height = self.calculate_total_height();
+        
+        // For content that fits in viewport, show everything from the start
+        if total_height <= viewport_height {
+            self.line_scroll = 0;
+            return;
+        }
+        
+        // Otherwise, scroll to show the latest content while keeping as much context visible as possible
+        self.line_scroll = total_height.saturating_sub(viewport_height);
+    }
+    
+    /// Scroll to the bottom of the chat history
+    /// Uses a reasonable default viewport height if actual height is not available
+    pub fn scroll_to_bottom(&mut self) {
+        // Use a reasonable minimum viewport height as default
+        self.scroll_to_show_latest(20);
     }
     
     /// Reset the input field
@@ -95,14 +132,34 @@ impl App {
     
     /// Scroll chat history up
     pub fn scroll_up(&mut self) {
-        if self.chat_scroll > 0 {
-            self.chat_scroll -= 1;
+        // Scroll by 3 lines at a time for smoother scrolling
+        if self.line_scroll >= 3 {
+            self.line_scroll -= 3;
+        } else {
+            self.line_scroll = 0;
         }
     }
     
     /// Scroll chat history down
     pub fn scroll_down(&mut self) {
-        self.chat_scroll += 1;
+        // Scroll by 3 lines at a time for smoother scrolling
+        self.line_scroll += 3;
+    }
+    
+    /// Scroll by a specific number of lines (positive = down, negative = up)
+    pub fn scroll_by(&mut self, lines: i32) {
+        if lines < 0 {
+            // Scrolling up
+            let up_amount = lines.abs() as usize;
+            if self.line_scroll >= up_amount {
+                self.line_scroll -= up_amount;
+            } else {
+                self.line_scroll = 0;
+            }
+        } else {
+            // Scrolling down
+            self.line_scroll += lines as usize;
+        }
     }
     
     /// Update spinner frame

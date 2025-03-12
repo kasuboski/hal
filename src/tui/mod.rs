@@ -52,14 +52,18 @@ pub async fn run(api_key: String) -> Result<()> {
     let mut last_tick = Instant::now();
     
     loop {
-        // Draw the UI on every iteration
+        // Get viewport dimensions for state updates
+        let viewport_height = terminal.size()?.height.saturating_sub(3) as usize; // Subtract input area height
+
+        // VIEW: Render current state
         terminal.draw(|f| draw(f, &app))?;
 
-        // Handle events with timeout
+        // UPDATE: Handle events and update state
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
 
+        // Handle input events
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
@@ -72,19 +76,17 @@ pub async fn run(api_key: String) -> Result<()> {
                     KeyCode::Enter => {
                         let input = app.input.trim().to_string();
                         if !input.is_empty() {
-                            // Add user message to history
+                            // Update state: Add user message
                             app.add_message("user", &input);
-                            
-                            // Reset input field and set loading state
+                            app.scroll_to_show_latest(viewport_height);
                             app.reset_input();
                             app.is_loading = true;
                             
-                            // Clone necessary values for the async task
+                            // Side effect: Send message to LLM
                             let chat = chat.clone();
                             let tx = tx.clone();
                             let message_history = app.message_history.clone();
                             
-                            // Spawn the LLM request in the background
                             tokio::spawn(async move {
                                 let result = chat.send_message(&input, Some(message_history.into_iter()
                                     .filter(|content| {
@@ -119,25 +121,39 @@ pub async fn run(api_key: String) -> Result<()> {
                     }
                     _ => {}
                 }
+            } else if let Event::Mouse(event) = event::read()? {
+                match event.kind {
+                    event::MouseEventKind::ScrollUp => {
+                        app.scroll_by(-5); // Scroll up 5 lines per mouse wheel tick
+                    }
+                    event::MouseEventKind::ScrollDown => {
+                        app.scroll_by(5);  // Scroll down 5 lines per mouse wheel tick
+                    }
+                    _ => {}
+                }
             }
         }
 
-        // Check for LLM responses
+        // Handle LLM responses
         if let Ok(response) = rx.try_recv() {
             match response {
                 Ok(response) => {
+                    // Update state: Add model response
                     let response_text = response.text();
                     app.is_loading = false;
                     app.add_message("model", &response_text);
+                    app.scroll_to_show_latest(viewport_height);
                 },
                 Err(e) => {
+                    // Update state: Add error message
                     app.is_loading = false;
                     app.add_message("model", &format!("Error: {}", e));
+                    app.scroll_to_show_latest(viewport_height);
                 }
             }
         }
         
-        // Check if we should tick
+        // Update animation state
         if last_tick.elapsed() >= tick_rate {
             app.tick_spinner();
             last_tick = Instant::now();

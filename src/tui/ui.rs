@@ -43,7 +43,22 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
     
     // Create a paragraph for each message
     let mut current_y: u16 = 0;
-    for (i, (role, text)) in app.rendered_messages.iter().enumerate().skip(app.chat_scroll) {
+    let mut total_height: u16 = 0;
+    
+    // First pass: calculate total height and find which messages to render
+    let mut start_message = 0;
+    for (i, (_, text)) in app.rendered_messages.iter().enumerate() {
+        let message_height = text.height() as u16 + 2; // +2 for role line and separator
+        if total_height + message_height <= app.line_scroll as u16 {
+            start_message = i + 1;
+            total_height += message_height;
+        } else {
+            break;
+        }
+    }
+    
+    // Second pass: render visible messages
+    for (i, (role, text)) in app.rendered_messages.iter().enumerate().skip(start_message) {
         let role_style = match role.as_str() {
             "user" => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
             "model" => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
