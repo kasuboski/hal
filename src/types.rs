@@ -51,15 +51,17 @@ impl Content {
 
 /// A part of content, which can be text, an image, or other media
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum Part {
     /// Text content
+    #[serde(rename = "text")]
     Text(String),
     
     /// Image content
+    #[serde(rename = "inline_data")]
     Image(Image),
     
     /// File reference
+    #[serde(rename = "file_data")]
     FileData(FileData),
 }
 

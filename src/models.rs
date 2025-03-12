@@ -188,6 +188,7 @@ mod tests {
     async fn test_generate_content() {
         let mut server = Server::new_async().await;
         let mock_server = server.mock("POST", "/v1beta/models/gemini-pro/generateContent")
+            .match_query(mockito::Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(r#"{
@@ -217,6 +218,7 @@ mod tests {
     async fn test_count_tokens() {
         let mut server = Server::new_async().await;
         let mock_server = server.mock("POST", "/v1beta/models/gemini-pro/countTokens")
+            .match_query(mockito::Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(r#"{
