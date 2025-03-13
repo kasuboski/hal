@@ -18,7 +18,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(1),     // Chat history
-            Constraint::Length(3),   // Input field
+            Constraint::Length(5),   // Input field (increased height)
         ])
         .split(f.area());
     
@@ -120,23 +120,87 @@ fn render_input(f: &mut Frame, app: &App, area: Rect) {
     
     let inner_area = input_block.inner(area);
     
-    // Render input field
+    // Calculate total number of lines in input
+    let all_lines: Vec<&str> = app.input.split('\n').collect();
+    let mut total_lines = 0;
+    for line in all_lines.iter() {
+        total_lines += (line.width() as u16).saturating_sub(1) / inner_area.width + 1;
+    }
+    
+    // Get scroll offset from app state
+    let scroll_offset = app.input_scroll_position as u16;
+    
+    // Calculate cursor position more accurately
+    let mut cursor_x = 0;
+    let mut cursor_y = 0;
+    
+    if app.cursor_position <= app.input.len() {
+        // Split input at cursor position
+        let before_cursor = app.input[..app.cursor_position].to_string();
+        
+        // Count newlines before cursor to get line number
+        let lines: Vec<&str> = before_cursor.split('\n').collect();
+        let line_count = lines.len().saturating_sub(1);
+        
+        // Get the current line the cursor is on
+        let current_line = lines.last().unwrap_or(&"");
+        
+        // Calculate cursor position on current line
+        cursor_x = current_line.width() as u16 % inner_area.width;
+        
+        // Calculate vertical position including wrapped lines from previous lines
+        let mut total_y = 0;
+        for (i, line) in all_lines.iter().enumerate() {
+            if i < line_count {
+                // Add height of previous complete lines
+                total_y += (line.width() as u16).saturating_sub(1) / inner_area.width + 1;
+            } else if i == line_count {
+                // Add height of current line up to cursor
+                total_y += current_line.width() as u16 / inner_area.width;
+                break;
+            }
+        }
+        
+        cursor_y = total_y;
+    }
+    
+    // Adjust cursor_y based on scroll offset
+    let visible_cursor_y = cursor_y.saturating_sub(scroll_offset);
+    
+    // Render input field with text wrapping and scrolling
     let input = Paragraph::new(app.input.as_str())
         .style(Style::default())
-        .block(input_block);
+        .block(input_block)
+        .wrap(Wrap { trim: false })
+        .scroll((scroll_offset, 0));
     
     f.render_widget(input, area);
     
-    // Render cursor
-    if app.cursor_position <= app.input.len() {
-        // Make sure cursor is visible even when it's at the end of the input
-        let cursor_x = app.input[..app.cursor_position].width() as u16;
+    // Add scrollbar if content exceeds visible area
+    if total_lines > inner_area.height {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
         
-        f.set_cursor_position((
-            inner_area.x + cursor_x,
-            inner_area.y
-        ));
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(total_lines as usize)
+            .position(scroll_offset as usize);
+        
+        f.render_stateful_widget(
+            scrollbar,
+            area.inner(Margin { vertical: 1, horizontal: 0 }),
+            &mut scrollbar_state
+        );
     }
+    
+    // Always show cursor, clamping to visible area if needed
+    let clamped_cursor_y = visible_cursor_y.min(inner_area.height.saturating_sub(1));
+    
+    // Set cursor position
+    f.set_cursor_position((
+        inner_area.x + cursor_x,
+        inner_area.y + clamped_cursor_y
+    ));
 }
 
 /// Render a popup with the given title and text

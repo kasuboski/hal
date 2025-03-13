@@ -8,6 +8,7 @@ use std::io;
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{EnableMouseCapture, DisableMouseCapture},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -25,7 +26,7 @@ pub async fn run(api_key: String) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -41,7 +42,7 @@ pub async fn run(api_key: String) -> Result<()> {
     // Add welcome message
     app.add_message(
         "ui", 
-        "# Welcome to HAL Chat\n\n* Type your messages and press Enter to send.\n* Press Esc or Ctrl+C to exit.\n* Use arrow keys to navigate history."
+        "# Welcome to HAL Chat\n\n* Type your messages and press Enter to send.\n* Press Alt+Enter (Option+Enter on macOS) to add a new line.\n* Use mouse wheel to scroll chat history and input field.\n* Press Esc or Ctrl+C to exit."
     );
 
     // Create channels for LLM communication
@@ -88,7 +89,7 @@ pub async fn run(api_key: String) -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     Ok(())
