@@ -135,7 +135,7 @@ pub async fn run(api_key: String) -> Result<()> {
                 }
                 Event::Resize(_, _) => {
                     // When terminal is resized, ensure scroll position is still valid
-                    app.clamp_scroll(viewport_height);
+                    app.clamp_scroll(viewport_height as u16);
                 }
                 _ => {}
             }

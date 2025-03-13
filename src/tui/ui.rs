@@ -1,8 +1,8 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect, Margin},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap, Clear},
+    widgets::{Block, Borders, Paragraph, Wrap, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 use unicode_width::UnicodeWidthStr;
@@ -35,62 +35,20 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .title(Span::styled(
             "Chat History",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
         ));
     
-    let inner_area = messages_block.inner(area);
-    f.render_widget(messages_block, area);
+    f.render_widget(messages_block.clone(), area);
     
     // Create a paragraph for each message
-    let mut current_y: u16 = 0;
-    let mut total_height: u16 = 0;
+    let mut lines: Vec<Line> = Vec::new();
     
-    // First pass: calculate total height and find which messages to render
-    let mut start_message = 0;
-    let mut accumulated_height: u16 = 0;
-    for (i, (_, text)) in app.rendered_messages.iter().enumerate() {
-        let message_height = text.height() as u16 + 2; // +2 for role line and separator
-        
-        // If we haven't scrolled past this message yet, it's our starting point
-        if accumulated_height + message_height > app.line_scroll as u16 {
-            start_message = i;
-            // Remember how many lines we've scrolled into this message
-            total_height = accumulated_height;
-            break;
-        }
-        
-        accumulated_height += message_height;
-        
-        // If we've scrolled past this message entirely, it becomes our start
-        if accumulated_height <= app.line_scroll as u16 {
-            start_message = i + 1;
-            total_height = accumulated_height;
-        }
-    }
-    
-    // Reset current_y for second pass
-    current_y = 0;
-    
-    // Second pass: render visible messages
-    for (i, (role, text)) in app.rendered_messages.iter().enumerate().skip(start_message) {
-        let message_height = text.height() as u16 + 2; // +2 for role line and separator
-        
-        // Skip if this message would start beyond our viewport
-        if current_y >= inner_area.height {
-            break;
-        }
-        
+    for (i, (role, text)) in app.rendered_messages.iter().enumerate() {
         let role_style = match role.as_str() {
             "user" => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
             "model" => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         };
-        
-        // Calculate the visible portion of this message
-        let visible_height = message_height.min(inner_area.height.saturating_sub(current_y));
-        if visible_height == 0 {
-            break;
-        }
         
         // Render role indicator
         let role_text = match role.as_str() {
@@ -100,74 +58,54 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
         };
         
         let role_span = Span::styled(format!("{}: ", role_text), role_style);
-        let role_line = Line::from(vec![role_span]);
+        lines.push(Line::from(vec![role_span]));
         
-        // Create a sub-area for this message
-        let message_area = Rect {
-            x: inner_area.x,
-            y: inner_area.y + current_y,
-            width: inner_area.width,
-            height: visible_height,
-        };
-        
-        // Render role line
-        let role_area = Rect {
-            height: 1,
-            ..message_area
-        };
-        f.render_widget(Paragraph::new(role_line), role_area);
-        
-        // Render message content
-        let content_area = Rect {
-            y: message_area.y + 1,
-            height: message_area.height.saturating_sub(1),
-            ..message_area
-        };
-        
-        f.render_widget(
-            Paragraph::new(text.clone())
-                .wrap(Wrap { trim: true }),
-            content_area,
-        );
-        
-        // Update current_y
-        current_y += visible_height;
+        // Add message content lines
+        lines.extend(text.lines.clone());
         
         // Add separator between messages
-        if current_y < inner_area.height && i < app.rendered_messages.len() - 1 {
-            let separator_area = Rect {
-                y: inner_area.y + current_y,
-                height: 1,
-                ..inner_area
-            };
-            
-            let separator = Line::from(vec![Span::styled(
+        if i < app.rendered_messages.len() - 1 {
+            lines.push(Line::from(vec![Span::styled(
                 "────────────────────────────────────────────────────────────────────────────────",
                 Style::default().fg(Color::DarkGray),
-            )]);
-            
-            f.render_widget(Paragraph::new(separator), separator_area);
-            current_y += 1;
+            )]));
         }
     }
 
     // Show spinner if loading
-    if app.is_loading && current_y < inner_area.height {
-        let spinner_area = Rect {
-            y: inner_area.y + current_y,
-            height: 1,
-            ..inner_area
-        };
-
-        let spinner_line = Line::from(vec![
+    if app.is_loading {
+        lines.push(Line::from(vec![
             Span::styled(
                 format!("{} Thinking...", SPINNER_FRAMES[app.spinner_frame]),
                 Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
             )
-        ]);
-
-        f.render_widget(Paragraph::new(spinner_line), spinner_area);
+        ]));
     }
+    
+    // Get current scroll position
+    let total_height = lines.len();
+    
+    // Render all messages in a single paragraph with scrolling
+    let messages = Paragraph::new(lines.clone())
+        .block(messages_block)
+        .scroll((app.scroll_position as u16, 0));
+    
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+
+    // Create local scrollbar state for rendering
+    let mut scrollbar_state = ScrollbarState::default()
+        .content_length(total_height)
+        .position(app.scroll_position);
+
+    // Render messages and scrollbar
+    f.render_widget(messages, area);
+    f.render_stateful_widget(
+        scrollbar,
+        area.inner(&Margin { vertical: 1, horizontal: 0 }),
+        &mut scrollbar_state
+    );
 }
 
 /// Render input field

@@ -1,5 +1,6 @@
 use hal::prelude::Content;
 use ratatui::text::Text;
+use ratatui::widgets::ScrollbarState;
 use crate::tui::markdown::markdown_to_ratatui_text;
 
 /// Application state for the TUI
@@ -10,8 +11,6 @@ pub struct App {
     pub input: String,
     /// Cursor position in the input field
     pub cursor_position: usize,
-    /// Scroll position in the chat history (in lines)
-    pub line_scroll: usize,
     /// Flag to indicate if the application should quit
     pub should_quit: bool,
     /// Rendered messages for display
@@ -20,6 +19,10 @@ pub struct App {
     pub is_loading: bool,
     /// Counter for spinner animation frames
     pub spinner_frame: usize,
+    /// Scrollbar state for chat history
+    pub scrollbar_state: ScrollbarState,
+    /// Current scroll position
+    pub scroll_position: usize,
 }
 
 impl App {
@@ -29,11 +32,12 @@ impl App {
             message_history: Vec::new(),
             input: String::new(),
             cursor_position: 0,
-            line_scroll: 0,
             should_quit: false,
             rendered_messages: Vec::new(),
             is_loading: false,
             spinner_frame: 0,
+            scrollbar_state: ScrollbarState::default(),
+            scroll_position: 0,
         }
     }
     
@@ -51,8 +55,10 @@ impl App {
         let rendered_text = markdown_to_ratatui_text(text);
         self.rendered_messages.push((role.to_string(), rendered_text));
 
-        // Auto-scroll to the bottom when a new message is added
-        self.scroll_to_bottom();
+        // Update scrollbar state with new content length
+        let total_height = self.calculate_total_height();
+        self.scrollbar_state = ScrollbarState::default()
+            .content_length(total_height);
     }
     
     /// Calculate total height of all messages
@@ -65,7 +71,7 @@ impl App {
     /// Scroll to show the latest content, given the available viewport height
     pub fn scroll_to_show_latest(&mut self, viewport_height: usize) {
         if self.rendered_messages.is_empty() {
-            self.line_scroll = 0;
+            self.scrollbar_state = ScrollbarState::default().content_length(0);
             return;
         }
         
@@ -74,20 +80,14 @@ impl App {
         
         // For content that fits in viewport, show everything from the start
         if total_height <= viewport_height {
-            self.line_scroll = 0;
+            self.scrollbar_state = ScrollbarState::default().content_length(total_height);
             return;
         }
         
         // Otherwise, scroll to show the latest content
-        // Set scroll position to show the bottom of the content
-        self.line_scroll = total_height.saturating_sub(viewport_height / 2);
-    }
-    
-    /// Scroll to the bottom of the chat history
-    /// Uses a reasonable default viewport height if actual height is not available
-    pub fn scroll_to_bottom(&mut self) {
-        // Use a reasonable minimum viewport height as default
-        self.scroll_to_show_latest(20);
+        self.scrollbar_state = ScrollbarState::default()
+            .content_length(total_height)
+            .position(total_height.saturating_sub(viewport_height / 2));
     }
     
     /// Reset the input field
@@ -133,59 +133,54 @@ impl App {
     
     /// Scroll chat history up
     pub fn scroll_up(&mut self) {
-        // Scroll by 3 lines at a time for smoother scrolling
-        if self.line_scroll >= 3 {
-            self.line_scroll -= 3;
-        } else {
-            self.line_scroll = 0;
-        }
+        let total_height = self.calculate_total_height();
+        self.scroll_position = self.scroll_position.saturating_sub(1);
+        self.scrollbar_state = ScrollbarState::default()
+            .content_length(total_height)
+            .position(self.scroll_position);
     }
     
     /// Scroll chat history down
     pub fn scroll_down(&mut self) {
         let total_height = self.calculate_total_height();
-        // Only scroll if there's more content below
-        // Calculate the maximum scroll position based on total content height
-        // We don't need to subtract viewport height here since that's handled in the rendering
-        if self.line_scroll + 3 < total_height {
-            self.line_scroll += 3;
-        }
+        let max_pos = total_height.saturating_sub(1);
+        self.scroll_position = self.scroll_position.saturating_add(1).min(max_pos);
+        self.scrollbar_state = ScrollbarState::default()
+            .content_length(total_height)
+            .position(self.scroll_position);
     }
     
     /// Scroll by a specific number of lines (positive = down, negative = up)
-    pub fn scroll_by(&mut self, lines: i32) {
+    pub fn scroll_by(&mut self, delta: i32) {
         let total_height = self.calculate_total_height();
         
-        if lines < 0 {
-            // Scrolling up
-            let up_amount = lines.unsigned_abs() as usize;
-            if self.line_scroll >= up_amount {
-                self.line_scroll -= up_amount;
-            } else {
-                self.line_scroll = 0;
-            }
+        self.scroll_position = if delta < 0 {
+            self.scroll_position.saturating_sub(delta.unsigned_abs() as usize)
         } else {
-            // Scrolling down - ensure we don't scroll past the content
-            let down_amount = lines as usize;
-            // Don't subtract viewport height here - that's handled in rendering
-            let max_scroll = total_height.saturating_sub(1); // Keep at least one line visible
-            self.line_scroll = (self.line_scroll + down_amount).min(max_scroll);
-        }
+            let max_pos = total_height.saturating_sub(1);
+            self.scroll_position.saturating_add(delta as usize).min(max_pos)
+        };
+        
+        self.scrollbar_state = ScrollbarState::default()
+            .content_length(total_height)
+            .position(self.scroll_position);
     }
     
     /// Ensure scroll position is valid for current viewport
-    pub fn clamp_scroll(&mut self, viewport_height: usize) {
+    pub fn clamp_scroll(&mut self, viewport_height: u16) {
         let total_height = self.calculate_total_height();
-        
-        // If content fits in viewport, reset scroll to top
-        if total_height <= viewport_height {
-            self.line_scroll = 0;
-            return;
+        if total_height <= viewport_height as usize {
+            self.scroll_position = 0;
+            self.scrollbar_state = ScrollbarState::default()
+                .content_length(total_height)
+                .position(0);
+        } else {
+            let max_scroll = total_height.saturating_sub(viewport_height as usize);
+            self.scroll_position = self.scroll_position.min(max_scroll);
+            self.scrollbar_state = ScrollbarState::default()
+                .content_length(total_height)
+                .position(self.scroll_position);
         }
-        
-        // Otherwise ensure scroll position shows as much content as possible
-        let max_scroll = total_height.saturating_sub(viewport_height);
-        self.line_scroll = self.line_scroll.min(max_scroll);
     }
     
     /// Update spinner frame
