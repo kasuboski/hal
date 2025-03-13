@@ -63,7 +63,7 @@ impl ModelsService {
     pub async fn generate_content(
         &self,
         model: impl Into<String> + std::fmt::Debug,
-        contents: impl Into<Content>,
+        contents: Vec<Content>,
     ) -> Result<GenerateContentResponse> {
         self.generate_content_with_config(model, contents, None, None).await
     }
@@ -73,20 +73,19 @@ impl ModelsService {
     pub async fn generate_content_with_config(
         &self,
         model: impl Into<String> + std::fmt::Debug,
-        contents: impl Into<Content>,
+        contents: Vec<Content>,
         config: Option<GenerationConfig>,
         safety_settings: Option<Vec<SafetySetting>>,
     ) -> Result<GenerateContentResponse> {
         let model = model.into();
-        let content = contents.into();
         
         let request = GenerateContentRequest {
-            contents: vec![content],
+            contents,
             generation_config: config,
             safety_settings,
         };
         
-        let path = format!("models/{}/generateContent", model);
+        let path = format!("models/{}:generateContent", model);
         
         debug!("Generating content from model {}", model);
         self.http_client.post(&path, &request, self.is_vertex).await
@@ -97,16 +96,15 @@ impl ModelsService {
     pub async fn count_tokens(
         &self,
         model: impl Into<String> + std::fmt::Debug,
-        contents: impl Into<Content>,
+        contents: Vec<Content>,
     ) -> Result<CountTokensResponse> {
         let model = model.into();
-        let content = contents.into();
         
         let request = CountTokensRequest {
-            contents: vec![content],
+            contents,
         };
         
-        let path = format!("models/{}/countTokens", model);
+        let path = format!("models/{}:countTokens", model);
         
         debug!("Counting tokens for model {}", model);
         self.http_client.post(&path, &request, self.is_vertex).await
@@ -137,7 +135,7 @@ impl ModelsService {
     pub async fn compute_tokens(
         &self,
         model: impl Into<String> + std::fmt::Debug,
-        contents: impl Into<Content>,
+        contents: Vec<Content>,
     ) -> Result<CountTokensResponse> {
         if !self.is_vertex {
             return Err(crate::error::Error::Unsupported(
@@ -146,10 +144,9 @@ impl ModelsService {
         }
         
         let model = model.into();
-        let content = contents.into();
         
         let request = CountTokensRequest {
-            contents: vec![content],
+            contents,
         };
         
         let path = format!("models/{}/computeTokens", model);
@@ -187,7 +184,7 @@ mod tests {
     #[tokio::test]
     async fn test_generate_content() {
         let mut server = Server::new_async().await;
-        let mock_server = server.mock("POST", "/v1beta/models/gemini-pro/generateContent")
+        let mock_server = server.mock("POST", "/v1beta/models/gemini-pro:generateContent")
             .match_query(mockito::Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -208,7 +205,7 @@ mod tests {
         let models_service = ModelsService::new(http_client, false);
         
         let content = Content::new().with_text("Hello, world!");
-        let response = models_service.generate_content("gemini-pro", content).await.unwrap();
+        let response = models_service.generate_content("gemini-pro", vec![content]).await.unwrap();
         
         assert_eq!(response.text(), "Generated text");
         mock_server.assert_async().await;
@@ -217,7 +214,7 @@ mod tests {
     #[tokio::test]
     async fn test_count_tokens() {
         let mut server = Server::new_async().await;
-        let mock_server = server.mock("POST", "/v1beta/models/gemini-pro/countTokens")
+        let mock_server = server.mock("POST", "/v1beta/models/gemini-pro:countTokens")
             .match_query(mockito::Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -232,7 +229,7 @@ mod tests {
         let models_service = ModelsService::new(http_client, false);
         
         let content = Content::new().with_text("Hello, world!");
-        let response = models_service.count_tokens("gemini-pro", content).await.unwrap();
+        let response = models_service.count_tokens("gemini-pro", vec![content]).await.unwrap();
         
         assert_eq!(response.total_tokens, 5);
         mock_server.assert_async().await;

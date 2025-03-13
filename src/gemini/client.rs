@@ -75,7 +75,7 @@ impl Client {
 
     /// Access the chats service
     pub fn chats(&self) -> ChatsService {
-        ChatsService::new(self.http_client.clone(), self.vertexai)
+        ChatsService::new(self.models())
     }
 
     /// Access the files service

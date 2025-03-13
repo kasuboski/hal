@@ -3,42 +3,22 @@
 //! This module provides functionality for multi-turn conversations with Gemini models.
 
 use crate::error::Result;
-use crate::gemini::http::HttpClient;
 use crate::gemini::types::{Content, GenerateContentResponse, GenerationConfig, SafetySetting};
-use serde::Serialize;
+use crate::gemini::models::ModelsService;
 use tracing::{debug, instrument};
-
-/// Request for sending a message in a chat
-#[derive(Debug, Serialize)]
-struct SendMessageRequest {
-    /// The message content
-    contents: Vec<Content>,
-    
-    /// Generation configuration
-    #[serde(skip_serializing_if = "Option::is_none")]
-    generation_config: Option<GenerationConfig>,
-    
-    /// Safety settings
-    #[serde(skip_serializing_if = "Option::is_none")]
-    safety_settings: Option<Vec<SafetySetting>>,
-}
 
 /// Service for chat sessions
 #[derive(Clone)]
 pub struct ChatsService {
-    /// HTTP client for making API requests
-    http_client: HttpClient,
-    
-    /// Whether this service is using Vertex AI
-    is_vertex: bool,
+    /// Models service for making API requests
+    models: ModelsService,
 }
 
 impl ChatsService {
     /// Create a new chats service
-    pub(crate) fn new(http_client: HttpClient, is_vertex: bool) -> Self {
+    pub(crate) fn new(models: ModelsService) -> Self {
         Self {
-            http_client,
-            is_vertex,
+            models,
         }
     }
     
@@ -69,8 +49,7 @@ impl ChatsService {
         Ok(ChatSession {
             chat_id,
             model,
-            http_client: self.http_client.clone(),
-            is_vertex: self.is_vertex,
+            models: self.models.clone(),
             generation_config: config,
             safety_settings,
         })
@@ -86,11 +65,8 @@ pub struct ChatSession {
     /// The model used for this chat
     model: String,
     
-    /// HTTP client for making API requests
-    http_client: HttpClient,
-    
-    /// Whether this session is using Vertex AI
-    is_vertex: bool,
+    /// Models service for making API requests
+    models: ModelsService,
     
     /// Generation configuration
     generation_config: Option<GenerationConfig>,
@@ -112,26 +88,21 @@ impl ChatSession {
         let mut contents = history.unwrap_or_default();
         contents.push(content);
         
-        let request = SendMessageRequest {
-            contents,
-            generation_config: self.generation_config.clone(),
-            safety_settings: self.safety_settings.clone(),
-        };
-        
-        // Use the model name directly in the path for the API request
-        let path = format!("models/{}:generateContent", self.model);
-        
         debug!("Sending message using model {} in chat {}", self.model, self.chat_id);
-        self.http_client.post(&path, &request, self.is_vertex).await
+        self.models.generate_content_with_config(
+            &self.model,
+            contents,
+            self.generation_config.clone(),
+            self.safety_settings.clone()
+        ).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    // No need to import unused types
     use mockito::Server;
-    
+    use crate::gemini::http::HttpClient;
     #[tokio::test]
     async fn test_send_message() {
         let mut server = Server::new_async().await;
@@ -154,11 +125,12 @@ mod tests {
         let mut http_client = HttpClient::with_api_key("test-key".to_string());
         http_client.set_base_url(server.url());
         
+        let models = ModelsService::new(http_client, false);
+        
         let chat = ChatSession {
             chat_id: "chats/test-chat-id".to_string(),
             model: "gemini-pro".to_string(),
-            http_client,
-            is_vertex: false,
+            models,
             generation_config: None,
             safety_settings: None,
         };
