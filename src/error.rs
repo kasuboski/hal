@@ -1,10 +1,12 @@
 //! Error types for the HAL crate
 
+use thiserror::Error;
+
 /// Result type for HAL operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error type for HAL operations
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// HTTP client error
     #[error("HTTP error: {0}")]

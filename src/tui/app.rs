@@ -1,9 +1,14 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use hal::prelude::Content;
 use ratatui::text::Text;
 use ratatui::widgets::ScrollbarState;
+use tokio::sync::mpsc;
+
+use crate::tui::error::{Error, Result};
+use crate::tui::event::{Event, EventHandler, AppEvent};
 use crate::tui::markdown::markdown_to_ratatui_text;
 
-/// Application state for the TUI
+/// Application state
 pub struct App {
     /// Message history for the chat
     pub message_history: Vec<Content>,
@@ -23,6 +28,8 @@ pub struct App {
     pub scrollbar_state: ScrollbarState,
     /// Current scroll position
     pub scroll_position: usize,
+    /// Event handler
+    event_handler: EventHandler,
 }
 
 impl App {
@@ -38,9 +45,122 @@ impl App {
             spinner_frame: 0,
             scrollbar_state: ScrollbarState::default(),
             scroll_position: 0,
+            event_handler: EventHandler::new(),
         }
     }
-    
+
+    /// Get the next event
+    pub async fn next_event(&mut self) -> Option<Event> {
+        if let Some(event) = self.event_handler.next().await {
+            match &event {
+                Event::Terminal(term_event) => {
+                    if let Err(e) = self.handle_terminal_event(term_event) {
+                        eprintln!("Error handling terminal event: {}", e);
+                    }
+                }
+                Event::Tick => {
+                    self.tick_spinner();
+                }
+                Event::App(app_event) => {
+                    if let Err(e) = self.handle_app_event(app_event) {
+                        eprintln!("Error handling app event: {}", e);
+                    }
+                }
+            }
+            Some(event)
+        } else {
+            None
+        }
+    }
+
+    /// Get the event sender
+    pub fn event_sender(&self) -> mpsc::UnboundedSender<Event> {
+        self.event_handler.sender()
+    }
+
+    /// Handle terminal events
+    fn handle_terminal_event(&mut self, event: &crossterm::event::Event) -> Result<()> {
+        match event {
+            crossterm::event::Event::Key(key) => self.handle_key_event(*key)?,
+            crossterm::event::Event::Mouse(mouse) => {
+                match mouse.kind {
+                    MouseEventKind::ScrollUp => self.scroll_by(-5),
+                    MouseEventKind::ScrollDown => self.scroll_by(5),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Handle application events
+    fn handle_app_event(&mut self, event: &AppEvent) -> Result<()> {
+        match event {
+            AppEvent::Submit(input) => {
+                self.add_message("user", input);
+                self.is_loading = true;
+                self.reset_input();
+            }
+            AppEvent::LLMResponse(response) => {
+                self.is_loading = false;
+                self.add_message("model", response);
+            }
+            AppEvent::LLMError(error) => {
+                self.is_loading = false;
+                self.add_message("model", &format!("Error: {}", error));
+            }
+            AppEvent::Quit => {
+                self.should_quit = true;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle key events
+    fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Esc => {
+                self.event_handler.sender().send(Event::App(AppEvent::Quit))
+                    .map_err(|e| Error::Event(e.to_string()))?;
+            }
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.event_handler.sender().send(Event::App(AppEvent::Quit))
+                    .map_err(|e| Error::Event(e.to_string()))?;
+            }
+            KeyCode::Enter => {
+                let input = self.input.trim().to_string();
+                if !input.is_empty() {
+                    self.event_handler.sender().send(Event::App(AppEvent::Submit(input)))
+                        .map_err(|e| Error::Event(e.to_string()))?;
+                }
+            }
+            KeyCode::Char(c) => {
+                self.insert_char(c);
+            }
+            KeyCode::Backspace => {
+                self.backspace();
+            }
+            KeyCode::Delete => {
+                self.delete_char();
+            }
+            KeyCode::Left => {
+                self.move_cursor_left();
+            }
+            KeyCode::Right => {
+                self.move_cursor_right();
+            }
+            KeyCode::Up => {
+                self.scroll_up();
+            }
+            KeyCode::Down => {
+                self.scroll_down();
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Add a message to the chat history
     pub fn add_message(&mut self, role: &str, text: &str) {
         let content = match role {
@@ -66,28 +186,6 @@ impl App {
         self.rendered_messages.iter()
             .map(|(_, text)| text.height() + 2) // +2 for role line and separator
             .sum()
-    }
-    
-    /// Scroll to show the latest content, given the available viewport height
-    pub fn scroll_to_show_latest(&mut self, viewport_height: usize) {
-        if self.rendered_messages.is_empty() {
-            self.scrollbar_state = ScrollbarState::default().content_length(0);
-            return;
-        }
-        
-        // Calculate total height
-        let total_height = self.calculate_total_height();
-        
-        // For content that fits in viewport, show everything from the start
-        if total_height <= viewport_height {
-            self.scrollbar_state = ScrollbarState::default().content_length(total_height);
-            return;
-        }
-        
-        // Otherwise, scroll to show the latest content
-        self.scrollbar_state = ScrollbarState::default()
-            .content_length(total_height)
-            .position(total_height.saturating_sub(viewport_height / 2));
     }
     
     /// Reset the input field
@@ -164,23 +262,6 @@ impl App {
         self.scrollbar_state = ScrollbarState::default()
             .content_length(total_height)
             .position(self.scroll_position);
-    }
-    
-    /// Ensure scroll position is valid for current viewport
-    pub fn clamp_scroll(&mut self, viewport_height: u16) {
-        let total_height = self.calculate_total_height();
-        if total_height <= viewport_height as usize {
-            self.scroll_position = 0;
-            self.scrollbar_state = ScrollbarState::default()
-                .content_length(total_height)
-                .position(0);
-        } else {
-            let max_scroll = total_height.saturating_sub(viewport_height as usize);
-            self.scroll_position = self.scroll_position.min(max_scroll);
-            self.scrollbar_state = ScrollbarState::default()
-                .content_length(total_height)
-                .position(self.scroll_position);
-        }
     }
     
     /// Update spinner frame

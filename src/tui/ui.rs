@@ -20,7 +20,7 @@ pub fn draw(f: &mut Frame, app: &App) {
             Constraint::Min(1),     // Chat history
             Constraint::Length(3),   // Input field
         ])
-        .split(f.size());
+        .split(f.area());
     
     // Render chat history
     render_messages(f, app, chunks[0]);
@@ -88,6 +88,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
     // Render all messages in a single paragraph with scrolling
     let messages = Paragraph::new(lines.clone())
         .block(messages_block)
+        .wrap(Wrap { trim: true })
         .scroll((app.scroll_position as u16, 0));
     
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -103,7 +104,7 @@ fn render_messages(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(messages, area);
     f.render_stateful_widget(
         scrollbar,
-        area.inner(&Margin { vertical: 1, horizontal: 0 }),
+        area.inner(Margin { vertical: 1, horizontal: 0 }),
         &mut scrollbar_state
     );
 }
@@ -131,17 +132,17 @@ fn render_input(f: &mut Frame, app: &App, area: Rect) {
         // Make sure cursor is visible even when it's at the end of the input
         let cursor_x = app.input[..app.cursor_position].width() as u16;
         
-        f.set_cursor(
+        f.set_cursor_position((
             inner_area.x + cursor_x,
-            inner_area.y,
-        );
+            inner_area.y
+        ));
     }
 }
 
 /// Render a popup with the given title and text
 #[allow(dead_code)]
 pub fn render_popup(f: &mut Frame, title: &str, text: &str) {
-    let size = f.size();
+    let size = f.area();
     
     // Calculate popup size
     let width = size.width.min(50);
