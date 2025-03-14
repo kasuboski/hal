@@ -81,6 +81,7 @@ impl ChatSession {
     pub async fn send_message(
         &self,
         message: impl Into<String> + std::fmt::Debug,
+        system_instruction: Option<Content>,
         history: Option<Vec<Content>>,
     ) -> Result<GenerateContentResponse> {
         let content = Content::new().with_role("user").with_text(message.into());
@@ -91,6 +92,7 @@ impl ChatSession {
         debug!("Sending message using model {} in chat {}", self.model, self.chat_id);
         self.models.generate_content_with_config(
             &self.model,
+            system_instruction,
             contents,
             self.generation_config.clone(),
             self.safety_settings.clone()
@@ -135,7 +137,7 @@ mod tests {
             safety_settings: None,
         };
         
-        let response = chat.send_message("Hello", None).await.unwrap();
+        let response = chat.send_message("Hello", None, None).await.unwrap();
         assert_eq!(response.text(), "Response text");
         
         mock_server.assert_async().await;

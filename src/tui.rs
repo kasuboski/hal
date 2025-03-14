@@ -14,7 +14,7 @@ use ratatui::{
     backend::CrosstermBackend,
     Terminal,
 };
-use hal::prelude::Result;
+use hal::prelude::{Content, Result};
 use tokio::sync::mpsc;
 
 use crate::tui::app::App;
@@ -53,7 +53,8 @@ pub async fn run(api_key: String) -> Result<()> {
     let chat_clone = chat.clone();
     tokio::spawn(async move {
         while let Some(input) = llm_rx.recv().await {
-            let result = chat_clone.send_message(&input, None).await;
+            let system = Content::new().with_text("You are a helpful assistant.");
+            let result = chat_clone.send_message(&input, Some(system), None).await;
             match result {
                 Ok(response) => {
                     let _ = event_sender.send(Event::App(AppEvent::LLMResponse(response.text())));

@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     print_colored("Type 'exit' to end the conversation.\n", Color::White, false);
     
     print_separator();
-    
+
     // Main chat loop
     loop {
         // Display colorized prompt and get user input
@@ -78,14 +78,15 @@ async fn main() -> Result<()> {
             print_colored("\nEnding chat session.\n", Color::Yellow, true);
             break;
         }
-        
+
+        let system = Content::new().with_text("You are a helpful assistant.");
         // Create user message content and add to history
         let user_message = Content::new().with_role("user").with_text(input);
         
         // Send message to LLM and get response
         // Add the new user message to history and send
         message_history.push(user_message);
-        match chat.send_message(input, Some(message_history.clone())).await {
+        match chat.send_message(input, Some(system),Some(message_history.clone())).await {
             Ok(response) => {
                 let response_text = response.text();
                 print_colored("AI", Color::Blue, true);

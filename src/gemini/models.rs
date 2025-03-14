@@ -23,6 +23,10 @@ struct GenerateContentRequest {
     /// Safety settings
     #[serde(skip_serializing_if = "Option::is_none")]
     safety_settings: Option<Vec<SafetySetting>>,
+
+    /// The system prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_instruction: Option<Content>,
 }
 
 /// Request for counting tokens
@@ -63,9 +67,10 @@ impl ModelsService {
     pub async fn generate_content(
         &self,
         model: impl Into<String> + std::fmt::Debug,
+        system_instruction: Option<Content>,
         contents: Vec<Content>,
     ) -> Result<GenerateContentResponse> {
-        self.generate_content_with_config(model, contents, None, None).await
+        self.generate_content_with_config(model, system_instruction, contents, None, None).await
     }
     
     /// Generate content with configuration
@@ -73,6 +78,7 @@ impl ModelsService {
     pub async fn generate_content_with_config(
         &self,
         model: impl Into<String> + std::fmt::Debug,
+        system_instruction: Option<Content>,
         contents: Vec<Content>,
         config: Option<GenerationConfig>,
         safety_settings: Option<Vec<SafetySetting>>,
@@ -83,6 +89,7 @@ impl ModelsService {
             contents,
             generation_config: config,
             safety_settings,
+            system_instruction,
         };
         
         let path = format!("models/{}:generateContent", model);
@@ -203,9 +210,10 @@ mod tests {
         http_client.set_base_url(server.url());
         
         let models_service = ModelsService::new(http_client, false);
-        
+
+        let system = Content::new().with_text("You are a helpful assistant.");
         let content = Content::new().with_text("Hello, world!");
-        let response = models_service.generate_content("gemini-pro", vec![content]).await.unwrap();
+        let response = models_service.generate_content("gemini-pro", Some(system), vec![content]).await.unwrap();
         
         assert_eq!(response.text(), "Generated text");
         mock_server.assert_async().await;
