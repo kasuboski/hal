@@ -8,7 +8,6 @@ mod models;
 mod types;
 mod chats;
 mod files;
-mod tunings;
 mod caches;
 mod batches;
 

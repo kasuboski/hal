@@ -298,38 +298,6 @@ pub struct Embedding {
     pub values: Vec<f32>,
 }
 
-/// Tuning dataset for model tuning
-#[derive(Debug, Clone, Serialize)]
-pub struct TuningDataset {
-    /// Examples for tuning
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub examples: Option<Vec<TuningExample>>,
-    
-    /// GCS URI for dataset
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gcs_uri: Option<String>,
-}
-
-/// Example for tuning
-#[derive(Debug, Clone, Serialize)]
-pub struct TuningExample {
-    /// Input text
-    pub text_input: String,
-    
-    /// Output text
-    pub output: String,
-}
-
-/// Configuration for creating a tuning job
-#[derive(Debug, Clone, Serialize)]
-pub struct CreateTuningJobConfig {
-    /// Number of epochs
-    pub epoch_count: i32,
-    
-    /// Display name for the tuned model
-    pub tuned_model_display_name: String,
-}
-
 /// Configuration for creating cached content
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateCachedContentConfig {

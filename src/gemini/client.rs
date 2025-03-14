@@ -9,7 +9,6 @@ use crate::gemini::chats::ChatsService;
 use crate::gemini::files::FilesService;
 use crate::gemini::http::HttpClient;
 use crate::gemini::models::ModelsService;
-use crate::gemini::tunings::TuningsService;
 use crate::gemini::types::HttpOptions;
 
 /// Client for the Gemini API
@@ -85,11 +84,6 @@ impl Client {
         } else {
             panic!("Files service is only available for Gemini Developer API");
         }
-    }
-
-    /// Access the tunings service
-    pub fn tunings(&self) -> TuningsService {
-        TuningsService::new(self.http_client.clone(), self.vertexai)
     }
 
     /// Access the caches service
