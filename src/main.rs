@@ -18,8 +18,8 @@ enum Commands {
 
 #[derive(Args)]
 struct ChatArgs {
-    /// Gemini model to use (default: gemini-1.5-pro)
-    #[arg(short, long, default_value = "gemini-1.5-pro")]
+    /// Gemini model to use (default: gemini-2.0-flash)
+    #[arg(short, long, default_value = "gemini-2.0-flash")]
     model: String,
 }
 
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Starting chat with model: {}", args.model);
             
             // Run the TUI application
-            tui::run(api_key).await?;
+            tui::run(api_key, args.model).await?;
         }
         None => {
             // If no command is provided, show help

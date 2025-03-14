@@ -22,7 +22,7 @@ use crate::tui::event::{Event, AppEvent};
 use crate::tui::ui::draw;
 
 /// Run the TUI application
-pub async fn run(api_key: String) -> Result<()> {
+pub async fn run(api_key: String, model: String) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -34,7 +34,7 @@ pub async fn run(api_key: String) -> Result<()> {
     let client = hal::Client::with_api_key(api_key);
     
     // Create a chat session
-    let chat = client.chats().create("gemini-2.0-flash").await?;
+    let chat = client.chats().create(&model).await?;
     
     // Create app state
     let mut app = App::new();
