@@ -38,8 +38,10 @@ pub struct App {
 impl App {
     /// Create a new application state
     pub fn new() -> Self {
-        // Create or truncate debug log file
-        let _ = std::fs::write("hal-debug.log", "Debug log started\n");
+        // Only create debug log file if HAL_TUI_DEBUG environment variable is set
+        if std::env::var("HAL_TUI_DEBUG").is_ok() {
+            let _ = std::fs::write("hal-debug.log", "Debug log started\n");
+        }
         
         Self {
             message_history: Vec::new(),
