@@ -23,6 +23,7 @@ pulldown-cmark = "0.13.0"
 ratatui = "0.29.0"
 crossterm = { version = "0.28.0", features = ["event-stream"] }
 unicode-width = "0.1.11"
+clap = { version = "4.5.3", features = ["derive"] }
 
 [dev-dependencies]
 mockito = "1.0"
