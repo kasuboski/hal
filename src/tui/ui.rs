@@ -162,13 +162,20 @@ fn render_input(f: &mut Frame, app: &App, area: Rect) {
         // Calculate vertical position including wrapped lines from previous lines
         let mut total_y = 0;
         for (i, line) in all_lines.iter().enumerate() {
-            if i < line_count {
-                // Add height of previous complete lines
-                total_y += (line.width() as u16).saturating_sub(1) / inner_area.width + 1;
-            } else if i == line_count {
-                // Add height of current line up to cursor
-                total_y += current_line.width() as u16 / inner_area.width;
-                break;
+            match i.cmp(&line_count) {
+                std::cmp::Ordering::Less => {
+                    // Add height of previous complete lines
+                    total_y += (line.width() as u16).saturating_sub(1) / inner_area.width + 1;
+                }
+                std::cmp::Ordering::Equal => {
+                    // Add height of current line up to cursor
+                    total_y += current_line.width() as u16 / inner_area.width;
+                    break;
+                }
+                std::cmp::Ordering::Greater => {
+                    // We've processed all lines up to the cursor
+                    break;
+                }
             }
         }
 

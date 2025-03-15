@@ -62,9 +62,8 @@ impl Client {
 
         let http_client = if let Some(api_key) = api_key {
             HttpClient::with_api_key_and_options(api_key, options)
-        } else if is_vertex && location.is_some() {
-            // Safe to unwrap here since we've checked both are Some
-            HttpClient::with_vertex_ai_and_options(project_id.unwrap(), location.unwrap(), options)
+        } else if let (Some(project_id), Some(location)) = (project_id, location) {
+            HttpClient::with_vertex_ai_and_options(project_id, location, options)
         } else {
             panic!("Either API key or project_id and location must be provided");
         };

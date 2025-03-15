@@ -4,10 +4,10 @@
 //! including vector search for semantic similarity.
 
 mod error;
-mod search;
+mod search_impl;
 
 pub use error::SearchError;
-pub use search::{search_index, search_index_with_client, SearchOptions, SearchResult};
+pub use search_impl::{search_index, search_index_with_client, SearchOptions, SearchResult};
 
 /// Re-export types needed for the search API
 pub use crate::index::{Database, IndexedChunk, Website};
@@ -50,7 +50,7 @@ impl SearchSystem {
 #[cfg(test)]
 mod tests {
 
-    use crate::search::search::SearchOptions;
+    use crate::search::search_impl::SearchOptions;
 
     #[test]
     fn test_search_options() {

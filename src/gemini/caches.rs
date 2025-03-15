@@ -7,7 +7,9 @@ use crate::gemini::http::HttpClient;
 /// Service for managing model caches
 #[derive(Clone)]
 pub struct CachesService {
+    #[allow(dead_code)]
     http_client: HttpClient,
+    #[allow(dead_code)]
     vertexai: bool,
 }
 

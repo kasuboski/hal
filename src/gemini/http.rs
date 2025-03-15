@@ -447,13 +447,15 @@ impl HttpClient {
     /// let client = HttpClient::with_gemini_rate_limits("your-api-key".to_string());
     /// ```
     pub fn with_gemini_rate_limits(api_key: String) -> Self {
-        let mut options = HttpOptions::default();
-        options.enable_client_side_rate_limiting = true;
-        options.requests_per_minute = 28; // More conservative than Gemini's 30 req/min limit
-        options.wait_when_rate_limited = true;
-        options.retry_on_rate_limit = true;
-        options.max_retries = 5; // Increase max retries for better resilience
-        options.default_retry_after_secs = 2; // Start with a shorter retry delay
+        let options = HttpOptions {
+            enable_client_side_rate_limiting: true,
+            requests_per_minute: 28, // More conservative than Gemini's 30 req/min limit
+            wait_when_rate_limited: true,
+            retry_on_rate_limit: true,
+            max_retries: 5, // Increase max retries for better resilience
+            default_retry_after_secs: 2, // Start with a shorter retry delay
+            ..HttpOptions::default()
+        };
 
         Self::with_api_key_and_options(api_key, options)
     }
@@ -475,13 +477,15 @@ impl HttpClient {
     /// let client = HttpClient::with_vertex_ai_rate_limits("your-project-id".to_string(), "us-central1".to_string());
     /// ```
     pub fn with_vertex_ai_rate_limits(project_id: String, location: String) -> Self {
-        let mut options = HttpOptions::default();
-        options.enable_client_side_rate_limiting = true;
-        options.requests_per_minute = 25; // More conservative than Gemini's 30 req/min limit
-        options.wait_when_rate_limited = true;
-        options.retry_on_rate_limit = true;
-        options.max_retries = 5; // Increase max retries for better resilience
-        options.default_retry_after_secs = 2; // Start with a shorter retry delay
+        let options = HttpOptions {
+            enable_client_side_rate_limiting: true,
+            requests_per_minute: 25, // More conservative than Gemini's 30 req/min limit
+            wait_when_rate_limited: true,
+            retry_on_rate_limit: true,
+            max_retries: 5, // Increase max retries for better resilience
+            default_retry_after_secs: 2, // Start with a shorter retry delay
+            ..HttpOptions::default()
+        };
 
         Self::with_vertex_ai_and_options(project_id, location, options)
     }
@@ -588,9 +592,11 @@ mod tests {
             .await;
 
         // Create client with rate limit retry enabled
-        let mut options = HttpOptions::default();
-        options.retry_on_rate_limit = true;
-        options.default_retry_after_secs = 1; // Use a short delay for testing
+        let options = HttpOptions {
+            retry_on_rate_limit: true,
+            default_retry_after_secs: 1, // Use a short delay for testing
+            ..HttpOptions::default()
+        };
 
         let mut client = HttpClient::with_api_key_and_options("test-key".to_string(), options);
         client.set_base_url(server.url());
@@ -618,10 +624,12 @@ mod tests {
             .create_async().await;
 
         // Create client with rate limit retry enabled but only 1 retry
-        let mut options = HttpOptions::default();
-        options.retry_on_rate_limit = true;
-        options.max_retries = 1;
-        options.default_retry_after_secs = 1; // Use a short delay for testing
+        let options = HttpOptions {
+            retry_on_rate_limit: true,
+            max_retries: 1,
+            default_retry_after_secs: 1, // Use a short delay for testing
+            ..HttpOptions::default()
+        };
 
         let mut client = HttpClient::with_api_key_and_options("test-key".to_string(), options);
         client.set_base_url(server.url());
@@ -641,10 +649,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_side_rate_limiting() {
-        let mut options = HttpOptions::default();
-        options.enable_client_side_rate_limiting = true;
-        options.requests_per_minute = 3; // Set a low limit for testing
-        options.wait_when_rate_limited = false; // Don't wait, return an error
+        let options = HttpOptions {
+            enable_client_side_rate_limiting: true,
+            requests_per_minute: 3, // Set a low limit for testing
+            wait_when_rate_limited: false, // Don't wait, return an error
+            ..HttpOptions::default()
+        };
 
         let client = HttpClient::with_api_key_and_options("test-key".to_string(), options);
 
@@ -660,10 +670,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_side_rate_limiting_with_waiting() {
-        let mut options = HttpOptions::default();
-        options.enable_client_side_rate_limiting = true;
-        options.requests_per_minute = 3; // Set a low limit for testing
-        options.wait_when_rate_limited = true; // Wait for a slot to become available
+        let options = HttpOptions {
+            enable_client_side_rate_limiting: true,
+            requests_per_minute: 3, // Set a low limit for testing
+            wait_when_rate_limited: true, // Wait for a slot to become available
+            ..HttpOptions::default()
+        };
 
         let client = HttpClient::with_api_key_and_options("test-key".to_string(), options);
 

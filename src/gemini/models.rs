@@ -163,6 +163,7 @@ impl ModelsService {
 
 /// Trait for streaming content generation
 #[async_trait]
+#[allow(dead_code)]
 pub trait StreamingModelsService {
     /// Stream generated content
     async fn generate_content_stream(

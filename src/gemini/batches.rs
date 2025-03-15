@@ -7,6 +7,7 @@ use crate::gemini::http::HttpClient;
 /// Service for managing batch operations
 #[derive(Clone)]
 pub struct BatchesService {
+    #[allow(dead_code)]
     http_client: HttpClient,
 }
 
