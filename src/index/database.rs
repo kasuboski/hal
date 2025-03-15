@@ -5,8 +5,10 @@ use crate::index::schema;
 use crate::index::{IndexedChunk, Website};
 use libsql::{params, Connection, Row, Rows};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::debug;
 
 /// Database manager for the index
+#[derive(Clone)]
 pub struct Database {
     conn: Connection,
 }
@@ -566,6 +568,157 @@ impl Database {
                 .get(8)
                 .map_err(|e| DbError::Data(format!("Failed to get heading: {}", e)))?,
         })
+    }
+
+    /// Reembed all chunks in the index with new embeddings
+    ///
+    /// This method retrieves all chunks from the database, regenerates embeddings for each chunk,
+    /// and updates the database with the new embeddings. This is useful when changing the embedding model.
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - The Gemini client to use for generating embeddings
+    /// * `concurrency` - Maximum number of concurrent embedding operations
+    /// * `source_filter` - Optional filter by source domain
+    /// * `progress_sender` - Optional channel sender for progress updates
+    ///
+    /// # Returns
+    ///
+    /// The number of chunks that were reembedded
+    pub async fn reembed_all_chunks(
+        &self,
+        client: &crate::gemini::Client,
+        concurrency: usize,
+        source_filter: Option<String>,
+        progress_sender: Option<tokio::sync::mpsc::Sender<(i64, String)>>,
+    ) -> Result<usize, DbError> {
+        use crate::processor::generate_combined_embedding;
+        use futures::future;
+        use std::sync::Arc;
+        use tokio::sync::Semaphore;
+        use tracing::{debug, info};
+
+        // Get all chunks from the database
+        let mut sql = String::from(
+            "SELECT c.id, c.website_id, c.url, c.text, c.summary, c.context, c.embedding, c.position, c.heading
+             FROM chunks c
+             JOIN websites w ON c.website_id = w.id",
+        );
+
+        // Add source filter if specified
+        let mut params: Vec<libsql::Value> = Vec::new();
+        if let Some(source) = &source_filter {
+            sql.push_str(" WHERE w.domain LIKE ?");
+            params.push(format!("%{}%", source).into());
+        }
+
+        // Execute query
+        let mut rows = self
+            .conn
+            .query(&sql, params)
+            .await
+            .map_err(|e| DbError::Query(format!("Failed to query chunks: {}", e)))?;
+
+        // Convert rows to chunks
+        let mut chunks = Vec::new();
+        while let Ok(Some(row)) = rows.next().await {
+            chunks.push(self.row_to_chunk(&row)?);
+        }
+
+        info!("Found {} chunks to reembed", chunks.len());
+
+        // Create semaphore for limiting concurrency
+        let semaphore = Arc::new(Semaphore::new(concurrency));
+        let mut tasks = Vec::new();
+
+        // Process chunks in parallel with bounded concurrency
+        for chunk in chunks {
+            let permit = semaphore.clone().acquire_owned();
+            let embedding_client = crate::gemini::Client::default_from_client(client);
+            let db = self.clone();
+            let progress_sender = progress_sender.clone();
+            let chunk_id = chunk.id;
+            let chunk_url = chunk.url.clone();
+
+            let task = tokio::spawn(async move {
+                let _permit = permit
+                    .await
+                    .map_err(|e| DbError::Other(format!("Failed to acquire semaphore: {}", e)))?;
+
+                debug!("Reembedding chunk {} from {}", chunk_id, chunk_url);
+
+                // Generate new embedding using combined text, summary, and context
+                let new_embedding = generate_combined_embedding(
+                    &embedding_client,
+                    &chunk.text,
+                    &chunk.summary,
+                    &chunk.context,
+                )
+                .await
+                .map_err(|e| DbError::Other(format!("Failed to generate embedding: {}", e)))?;
+
+                // Update chunk in database
+                db.update_chunk_embedding(chunk_id, &new_embedding).await?;
+
+                // Send progress update if sender is provided
+                if let Some(sender) = progress_sender {
+                    // Ignore errors from sending (e.g., if receiver is dropped)
+                    let _ = sender.send((chunk_id, chunk_url)).await;
+                }
+
+                Ok::<i64, DbError>(chunk_id)
+            });
+
+            tasks.push(task);
+        }
+
+        // Store the number of tasks
+        let task_count = tasks.len();
+
+        // Wait for all tasks to complete
+        let results = future::join_all(tasks).await;
+
+        // Count successful updates
+        let mut success_count = 0;
+        for result in results {
+            match result {
+                Ok(Ok(_)) => success_count += 1,
+                Ok(Err(e)) => {
+                    debug!("Failed to reembed chunk: {}", e);
+                }
+                Err(e) => {
+                    debug!("Task failed: {}", e);
+                }
+            }
+        }
+
+        info!(
+            "Successfully reembedded {}/{} chunks",
+            success_count, task_count
+        );
+
+        Ok(success_count)
+    }
+
+    /// Update the embedding for a chunk
+    async fn update_chunk_embedding(
+        &self,
+        chunk_id: i64,
+        embedding: &[f32],
+    ) -> Result<(), DbError> {
+        // Convert embedding to binary blob
+        let embedding_blob: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
+
+        // Update the chunk in the database
+        self.conn
+            .execute(
+                "UPDATE chunks SET embedding = ? WHERE id = ?",
+                params![libsql::Value::Blob(embedding_blob), chunk_id,],
+            )
+            .await
+            .map_err(|e| DbError::Query(format!("Failed to update chunk embedding: {}", e)))?;
+
+        Ok(())
     }
 }
 

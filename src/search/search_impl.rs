@@ -52,9 +52,6 @@ pub struct SearchResult {
 
     /// Domain of the source website
     pub website_domain: String,
-
-    /// Similarity score (constant 1.0 for vector search results)
-    pub score: f64,
 }
 
 /// Search the index with the given query and options
@@ -109,8 +106,7 @@ async fn vector_search(
     let mut sql = String::from(
         "SELECT 
             c.id, c.text, c.summary, c.context, c.url,
-            w.url as website_url, w.domain as website_domain,
-            1.0 as score
+            w.url as website_url, w.domain as website_domain
         FROM vector_top_k('chunks_idx', ?, ?) as v
         JOIN chunks c ON c.rowid = v.id
         JOIN websites w ON c.website_id = w.id",
@@ -174,9 +170,6 @@ async fn process_results(mut rows: libsql::Rows) -> Result<Vec<SearchResult>, Se
             })?,
             website_domain: row.get(6).map_err(|e| {
                 SearchError::ResultProcessing(format!("Failed to get website_domain: {}", e))
-            })?,
-            score: row.get(7).map_err(|e| {
-                SearchError::ResultProcessing(format!("Failed to get score: {}", e))
             })?,
         });
     }

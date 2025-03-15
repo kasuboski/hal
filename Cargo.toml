@@ -33,6 +33,7 @@ html2md = "0.2.14"
 tokio-stream = "0.1.14"
 chrono = { version = "0.4.31", features = ["serde"] }
 semver = "1.0.20"
+indicatif = "0.17.8"
 
 [dev-dependencies]
 mockito = "1.0"

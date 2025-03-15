@@ -1,7 +1,9 @@
 mod tui;
 
 use clap::{Args, Parser, Subcommand};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
+use tokio::sync::mpsc;
 
 #[derive(Parser)]
 #[command(author, version, about = "A Rust client for Google's Gemini AI API", long_about = None)]
@@ -26,6 +28,9 @@ enum Commands {
 
     /// List indexed websites
     List(ListArgs),
+
+    /// Reembed all chunks in the index with new embeddings
+    Reembed(ReembedArgs),
 }
 
 #[derive(Args)]
@@ -77,7 +82,7 @@ struct IndexArgs {
     chunk_size: usize,
 
     /// LLM model for summaries
-    #[arg(short, long, default_value = "gemini-1.5-flash")]
+    #[arg(short, long, default_value = "gemini-2.0-flash-lite")]
     model: String,
 
     /// Force reindex
@@ -131,6 +136,21 @@ struct ListArgs {
     database: PathBuf,
 }
 
+#[derive(Args)]
+struct ReembedArgs {
+    /// Database path
+    #[arg(short, long, default_value = "index.db")]
+    database: PathBuf,
+
+    /// Number of concurrent embedding operations
+    #[arg(short, long, default_value = "5")]
+    concurrency: usize,
+
+    /// Filter by source domain
+    #[arg(short, long)]
+    source: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
@@ -163,6 +183,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::List(args)) => {
             list_command(args).await?;
+        }
+        Some(Commands::Reembed(args)) => {
+            reembed_command(args).await?;
         }
         None => {
             // If no command is provided, show help
@@ -487,4 +510,118 @@ async fn list_command(args: ListArgs) -> Result<(), Box<dyn std::error::Error>> 
     }
 
     Ok(())
+}
+
+async fn reembed_command(args: ReembedArgs) -> Result<(), Box<dyn std::error::Error>> {
+    // Create database connection
+    let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
+
+    println!("Reembedding all chunks in the index with new embeddings...");
+
+    // Display source filter if specified
+    if let Some(source) = &args.source {
+        println!("Filtering by source domain: {}", source);
+    }
+
+    println!("Using concurrency level: {}", args.concurrency);
+
+    // Get API key from environment variable
+    let api_key =
+        std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
+
+    // Create client for embedding generation
+    let client = hal::Client::with_api_key_rate_limited(api_key);
+
+    // Create a channel for progress updates
+    let (progress_sender, mut progress_receiver) = mpsc::channel(100);
+
+    // First, count the total number of chunks to process
+    let total_chunks = count_chunks_to_reembed(&db, args.source.clone()).await?;
+
+    // Create progress bar
+    let progress_bar = ProgressBar::new(total_chunks as u64);
+    progress_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} ({eta}) {msg}")
+            .unwrap()
+            .progress_chars("##-"),
+    );
+    progress_bar.set_message("Reembedding chunks...");
+
+    // Start timer
+    let start_time = std::time::Instant::now();
+
+    // Spawn a task to process progress updates
+    let progress_handle = tokio::spawn({
+        let progress_bar = progress_bar.clone();
+        async move {
+            while let Some((chunk_id, url)) = progress_receiver.recv().await {
+                progress_bar.inc(1);
+                // Only update the message, don't print a new line
+                progress_bar.set_message(format!("Processed chunk {} from {}", chunk_id, url));
+            }
+            // Signal that we're done processing updates
+            progress_bar.finish_with_message("Reembedding completed");
+        }
+    });
+
+    // Reembed all chunks in the index with new embeddings
+    let reembedded_count = db
+        .reembed_all_chunks(
+            &client,
+            args.concurrency,
+            args.source.clone(),
+            Some(progress_sender),
+        )
+        .await?;
+
+    // Wait for progress task to complete (it will end when all senders are dropped)
+    let _ = progress_handle.await;
+
+    // Calculate elapsed time
+    let elapsed = start_time.elapsed();
+
+    println!("Reembedding completed successfully");
+    println!("Reembedded {} chunks in {:.2?}", reembedded_count, elapsed);
+
+    if reembedded_count > 0 {
+        let avg_time = elapsed.as_millis() as f64 / reembedded_count as f64;
+        println!("Average time per chunk: {:.2?}ms", avg_time);
+    }
+
+    Ok(())
+}
+
+/// Count the number of chunks that will be reembedded
+async fn count_chunks_to_reembed(
+    db: &hal::index::Database,
+    source_filter: Option<String>,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    // Build the SQL query
+    let mut sql =
+        String::from("SELECT COUNT(*) FROM chunks c JOIN websites w ON c.website_id = w.id");
+
+    // Add source filter if specified
+    let mut params: Vec<libsql::Value> = Vec::new();
+    if let Some(source) = &source_filter {
+        sql.push_str(" WHERE w.domain LIKE ?");
+        params.push(format!("%{}%", source).into());
+    }
+
+    // Execute query
+    let mut rows = db.execute_query(&sql, params).await?;
+
+    // Get the count
+    let row = match rows.next().await {
+        Ok(Some(row)) => row,
+        Ok(None) => return Ok(0),
+        Err(e) => return Err(format!("Failed to get count: {}", e).into()),
+    };
+
+    let count: i64 = match row.get(0) {
+        Ok(count) => count,
+        Err(e) => return Err(format!("Failed to get count from row: {}", e).into()),
+    };
+
+    Ok(count as usize)
 }

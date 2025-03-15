@@ -54,6 +54,31 @@ pub struct ChunkMetadata {
     pub heading: Option<String>,
 }
 
+/// Generate an embedding from combined text, summary, and context
+///
+/// # Arguments
+///
+/// * `client` - The Gemini client
+/// * `text` - The text content
+/// * `summary` - The summary of the text
+/// * `context` - The context information
+///
+/// # Returns
+///
+/// A vector of floats representing the embedding
+pub async fn generate_combined_embedding(
+    client: &Client,
+    text: &str,
+    summary: &str,
+    context: &str,
+) -> Result<Vec<f32>, ProcessError> {
+    // Combine the text, summary, and context
+    let combined_text = format!("Text: {}\nSummary: {}\nContext: {}", text, summary, context);
+
+    // Generate embedding using the existing function
+    generate_embedding(client, &combined_text).await
+}
+
 /// Process content from a crawled page
 ///
 /// # Arguments
@@ -96,15 +121,17 @@ pub async fn process_content(
                 // wasn't seeing this contribute to a rate limit at all
                 let embedding_client = Client::default_from_client(&client);
 
-                // Generate embedding
-                let embedding = generate_embedding(&embedding_client, &chunk.text).await?;
-
                 // Generate summary using LLM
                 let summary = generate_summary(&client, &chunk.text, &llm_model).await?;
 
                 // Generate context string using LLM
                 let context =
                     generate_context_string(&client, &chunk.text, &url, &metadata, &llm_model)
+                        .await?;
+
+                // Generate embedding from combined text, summary, and context
+                let embedding =
+                    generate_combined_embedding(&embedding_client, &chunk.text, &summary, &context)
                         .await?;
 
                 // Create chunk metadata

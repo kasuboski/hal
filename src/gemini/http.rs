@@ -452,7 +452,7 @@ impl HttpClient {
             requests_per_minute: 28, // More conservative than Gemini's 30 req/min limit
             wait_when_rate_limited: true,
             retry_on_rate_limit: true,
-            max_retries: 5, // Increase max retries for better resilience
+            max_retries: 5,              // Increase max retries for better resilience
             default_retry_after_secs: 2, // Start with a shorter retry delay
             ..HttpOptions::default()
         };
@@ -482,7 +482,7 @@ impl HttpClient {
             requests_per_minute: 25, // More conservative than Gemini's 30 req/min limit
             wait_when_rate_limited: true,
             retry_on_rate_limit: true,
-            max_retries: 5, // Increase max retries for better resilience
+            max_retries: 5,              // Increase max retries for better resilience
             default_retry_after_secs: 2, // Start with a shorter retry delay
             ..HttpOptions::default()
         };
@@ -651,7 +651,7 @@ mod tests {
     async fn test_client_side_rate_limiting() {
         let options = HttpOptions {
             enable_client_side_rate_limiting: true,
-            requests_per_minute: 3, // Set a low limit for testing
+            requests_per_minute: 3,        // Set a low limit for testing
             wait_when_rate_limited: false, // Don't wait, return an error
             ..HttpOptions::default()
         };
@@ -672,7 +672,7 @@ mod tests {
     async fn test_client_side_rate_limiting_with_waiting() {
         let options = HttpOptions {
             enable_client_side_rate_limiting: true,
-            requests_per_minute: 3, // Set a low limit for testing
+            requests_per_minute: 3,       // Set a low limit for testing
             wait_when_rate_limited: true, // Wait for a slot to become available
             ..HttpOptions::default()
         };
