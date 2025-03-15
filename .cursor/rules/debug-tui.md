@@ -1,4 +1,7 @@
-# Debugging TUI Issues
+---
+title: Debugging Tui Issues
+description: When you need to debug tui problems, you can output logs using an environment variable
+---
 
 When encountering issues with the terminal user interface (TUI), you can enable debug logging to help diagnose problems:
 

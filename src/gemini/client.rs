@@ -22,6 +22,14 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn default_from_client(client: &Client) -> Self {
+        let http_client = client.http_client.reset_default_options();
+        Self {
+            http_client,
+            vertexai: client.vertexai,
+        }
+    }
+
     /// Create a new client with an API key for the Gemini Developer API
     pub fn with_api_key(api_key: impl Into<String>) -> Self {
         let http_client = HttpClient::with_api_key(api_key.into());
@@ -51,7 +59,7 @@ impl Client {
     ) -> Self {
         // Check if project_id is Some before using it in pattern matching to avoid moving it
         let is_vertex = project_id.is_some();
-        
+
         let http_client = if let Some(api_key) = api_key {
             HttpClient::with_api_key_and_options(api_key, options)
         } else if is_vertex && location.is_some() {
@@ -103,6 +111,50 @@ impl Client {
     /// Check if this client is using Vertex AI
     pub fn is_vertex_ai(&self) -> bool {
         self.vertexai
+    }
+
+    /// Create a new client with an API key for the Gemini Developer API with default rate limits
+    ///
+    /// This is a convenience method that creates a client with client-side rate limiting enabled
+    /// to stay within Gemini's default limit of 30 requests per minute per model.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hal::gemini::Client;
+    ///
+    /// let client = Client::with_api_key_rate_limited("your-api-key");
+    /// ```
+    pub fn with_api_key_rate_limited(api_key: impl Into<String>) -> Self {
+        let http_client = HttpClient::with_gemini_rate_limits(api_key.into());
+        Self {
+            http_client,
+            vertexai: false,
+        }
+    }
+
+    /// Create a new client for Vertex AI with default rate limits
+    ///
+    /// This is a convenience method that creates a client with client-side rate limiting enabled
+    /// to stay within Gemini's default limit of 30 requests per minute per model.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hal::gemini::Client;
+    ///
+    /// let client = Client::with_vertex_ai_rate_limited("your-project-id", "us-central1");
+    /// ```
+    pub fn with_vertex_ai_rate_limited(
+        project_id: impl Into<String>,
+        location: impl Into<String>,
+    ) -> Self {
+        let http_client =
+            HttpClient::with_vertex_ai_rate_limits(project_id.into(), location.into());
+        Self {
+            http_client,
+            vertexai: true,
+        }
     }
 }
 

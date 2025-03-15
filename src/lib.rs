@@ -13,6 +13,7 @@
 //! - File handling
 //! - Tuning operations
 //! - Async API with Tokio
+//! - Website crawling and indexing for RAG (Retrieval-Augmented Generation)
 //!
 //! ## Example
 //!
@@ -39,9 +40,14 @@
 mod error;
 mod gemini;
 mod markdown;
+// RAG feature modules
+pub mod crawler;
+pub mod index;
+pub mod processor;
+pub mod search;
 
-pub use gemini::Client;
 pub use error::Error;
+pub use gemini::Client;
 pub use markdown::format_markdown;
 
 /// Re-export of types module for public use

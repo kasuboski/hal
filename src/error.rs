@@ -52,6 +52,22 @@ pub enum Error {
     #[error("Markdown error: {0}")]
     Markdown(#[from] std::io::Error),
 
+    /// Web crawling error
+    #[error("Crawl error: {0}")]
+    Crawl(String),
+
+    /// Content processing error
+    #[error("Process error: {0}")]
+    Process(String),
+
+    /// Database error
+    #[error("Database error: {0}")]
+    Database(String),
+
+    /// Search error
+    #[error("Search error: {0}")]
+    Search(String),
+
     /// Other errors
     #[error("{0}")]
     Other(String),

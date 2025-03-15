@@ -2,14 +2,14 @@
 //!
 //! This module provides the core implementation for interacting with Google's Gemini API.
 
+mod batches;
+mod caches;
+mod chats;
 mod client;
+mod files;
 mod http;
 mod models;
 mod types;
-mod chats;
-mod files;
-mod caches;
-mod batches;
 
 pub use client::Client;
 

@@ -13,9 +13,7 @@ pub struct BatchesService {
 impl BatchesService {
     /// Create a new batches service
     pub(crate) fn new(http_client: HttpClient) -> Self {
-        Self {
-            http_client,
-        }
+        Self { http_client }
     }
 
     // TODO: Implement batch-specific methods

@@ -43,17 +43,17 @@ impl EventHandler {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let event_sender = sender.clone();
-        
+
         // Spawn the event handling task
         tokio::spawn(async move {
             let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
             let mut reader = crossterm::event::EventStream::new();
             let mut tick = tokio::time::interval(tick_rate);
-            
+
             loop {
                 let tick_delay = tick.tick();
                 let crossterm_event = reader.next().fuse();
-                
+
                 tokio::select! {
                     _ = event_sender.closed() => {
                         break;
@@ -67,17 +67,17 @@ impl EventHandler {
                 }
             }
         });
-        
+
         Self { sender, receiver }
     }
-    
+
     /// Get the event sender
     pub fn sender(&self) -> mpsc::UnboundedSender<Event> {
         self.sender.clone()
     }
-    
+
     /// Get the next event
     pub async fn next(&mut self) -> Option<Event> {
         self.receiver.recv().await
     }
-} 
+}

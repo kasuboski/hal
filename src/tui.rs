@@ -1,24 +1,21 @@
 pub mod app;
-pub mod event;
-pub mod ui;
-pub mod markdown;
 pub mod error;
+pub mod event;
+pub mod markdown;
+pub mod ui;
 
-use std::io;
 use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    event::{EnableMouseCapture, DisableMouseCapture},
-};
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
 };
 use hal::prelude::{Content, Result};
+use ratatui::{backend::CrosstermBackend, Terminal};
+use std::io;
 use tokio::sync::mpsc;
 
 use crate::tui::app::App;
-use crate::tui::event::{Event, AppEvent};
+use crate::tui::event::{AppEvent, Event};
 use crate::tui::ui::draw;
 
 /// Run the TUI application
@@ -32,13 +29,13 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
 
     // Initialize the client
     let client = hal::Client::with_api_key(api_key);
-    
+
     // Create a chat session
     let chat = client.chats().create(&model).await?;
-    
+
     // Create app state
     let mut app = App::new();
-    
+
     // Add welcome message
     app.add_message(
         "ui", 
@@ -48,7 +45,7 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
     // Create channels for LLM communication
     let (llm_tx, mut llm_rx) = mpsc::unbounded_channel();
     let event_sender = app.event_sender();
-    
+
     // Set up LLM response handler
     let chat_clone = chat.clone();
     tokio::spawn(async move {
@@ -68,12 +65,12 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
 
     // Run the application
     terminal.clear()?;
-    
+
     // Main event loop
     while !app.should_quit {
         // Draw the current state
         terminal.draw(|f| draw(f, &app))?;
-        
+
         // Process the next event
         if let Some(event) = app.next_event().await {
             match event {
@@ -90,8 +87,12 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
     terminal.show_cursor()?;
 
     Ok(())
-} 
+}
