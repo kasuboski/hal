@@ -90,8 +90,20 @@ struct IndexArgs {
     force: bool,
 
     /// Database path
-    #[arg(short, long, default_value = "index.db")]
+    #[arg(long, default_value = "index.db")]
     database: PathBuf,
+
+    /// Maximum depth for crawling
+    #[arg(short = 'd', long, default_value = "2")]
+    max_depth: u32,
+
+    /// Maximum number of pages to crawl
+    #[arg(short = 'p', long, default_value = "100")]
+    max_pages: u32,
+
+    /// Index a single page
+    #[arg(short, long)]
+    single: bool,
 }
 
 #[derive(Args)]
@@ -241,13 +253,20 @@ async fn index_command(args: IndexArgs) -> Result<(), Box<dyn std::error::Error>
     // Create database connection
     let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
 
+    // Set max_depth and max_pages based on the single argument
+    let (max_depth, max_pages) = if args.single {
+        (0, 1) // Set to 0 and 1 if single is true
+    } else {
+        (args.max_depth, args.max_pages) // Use provided values otherwise
+    };
+
     let pages = if args.source.starts_with("http") {
-        println!("Crawling {}...", args.source);
+        println!("Fetching {}...", args.source);
 
         // Create crawler configuration
         let config = hal::crawler::CrawlerConfig::builder()
-            .max_depth(2)
-            .max_pages(100)
+            .max_depth(max_depth)
+            .max_pages(max_pages)
             .rate_limit_ms(1000)
             .respect_robots_txt(true)
             .user_agent("hal-rag/0.1".to_string())

@@ -4,7 +4,7 @@ use crate::crawler::error::CrawlError;
 use crate::crawler::PageMetadata;
 use html2md::parse_html;
 use scraper::{Html, Selector};
-use tracing::{debug, warn};
+use tracing::warn;
 use url::Url;
 
 /// Clean HTML by removing unwanted elements and keeping only content elements
@@ -58,7 +58,6 @@ pub fn clean_html(
                 }
 
                 for element_html in elements_to_remove {
-                    debug!("Removing element: {}", element_html);
                     // This is a naive approach and might not work for all cases
                     // A more robust solution would use a proper HTML manipulation library
                     if let Some(pos) = clean_html.find(&element_html) {
