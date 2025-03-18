@@ -1,45 +1,55 @@
-//! # HAL - Google Gemini AI API Client for Rust
+//! # HAL - Language Model Client with RAG for Rust
 //!
-//! This crate provides an idiomatic Rust interface to Google's Generative AI APIs,
-//! specifically the Gemini models. It supports both the Gemini Developer API (via API key)
-//! and Vertex AI integration.
+//! This crate provides an idiomatic Rust interface for working with large language models,
+//! featuring a robust Retrieval-Augmented Generation (RAG) framework. It supports various
+//! model providers and includes comprehensive tools for building AI-powered applications.
 //!
 //! ## Features
 //!
-//! - Client configuration for both API key and Vertex AI authentication
-//! - Content generation (text, images, etc.)
+//! - Flexible client configuration for different model providers
+//! - Rate-limited content generation with automatic retries
 //! - Chat sessions for multi-turn conversations
-//! - Embedding generation
-//! - File handling
-//! - Tuning operations
+//! - Efficient embedding generation with caching
+//! - Comprehensive RAG framework:
+//!   - Website crawling and content extraction
+//!   - Smart text chunking and processing
+//!   - Vector indexing with LibSQL
+//!   - Semantic search capabilities
 //! - Async API with Tokio
-//! - Website crawling and indexing for RAG (Retrieval-Augmented Generation)
+//! - Robust error handling and logging
 //!
 //! ## Example
 //!
 //! ```rust,no_run
-//! use hal::Client;
-//! use hal::types::Content;
+//! use hal::model::Client;
+//! use rig::{providers::gemini, agent::AgentBuilder};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a client with API key
-//!     let client = Client::with_api_key("your-api-key");
+//!     // Create a Gemini client with API key and rate limiting
+//!     let gemini_client = gemini::Client::new("your-api-key");
+//!     let client = Client::new_gemini(gemini_client);
 //!
-//!     // Generate content
-//!     let response = client.models().generate_content(
-//!         "gemini-1.5-pro",
-//!         Content::new().with_text("Tell me a story about a robot learning to feel emotions.")
-//!     ).await?;
+//!     // Create an agent with a preamble for storytelling
+//!     let completion = client.completion().clone();
+//!     let agent = AgentBuilder::new(completion)
+//!         .preamble("You are a creative storyteller. Tell an engaging story based on the given prompt:")
+//!         .build();
 //!
-//!     println!("{}", response.text());
+//!     // Generate a story using the agent
+//!     let story = agent
+//!         .prompt("Tell me a story about a robot learning to feel emotions.")
+//!         .await?;
+//!
+//!     println!("{}", story);
 //!     Ok(())
 //! }
 //! ```
 
 mod error;
-mod gemini;
 mod markdown;
+pub mod model;
+
 // RAG feature modules
 pub mod crawler;
 pub mod index;
@@ -47,10 +57,10 @@ pub mod processor;
 pub mod search;
 
 pub use error::Error;
-pub use gemini::Client;
 pub use markdown::format_markdown;
 
 /// Re-export of types module for public use
 pub mod prelude {
-    pub use crate::gemini::prelude::*;
+    pub use crate::error::Error;
+    pub use crate::error::Result;
 }

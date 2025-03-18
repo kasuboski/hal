@@ -1,9 +1,10 @@
 //! Search implementation for RAG functionality
 
 use super::error::SearchError;
-use crate::gemini::prelude::Content;
-use crate::gemini::Client;
 use crate::index::Database;
+use crate::model::{Client, EmbeddingConversion};
+use rig::completion::CompletionModel;
+use rig::embeddings::EmbeddingModel;
 use serde::{Deserialize, Serialize};
 
 /// Options for search queries
@@ -55,42 +56,40 @@ pub struct SearchResult {
 }
 
 /// Search the index with the given query and options
-pub async fn search_index(
+pub async fn search_index<C, E>(
     db: &Database,
+    client: &Client<C, E>,
     query: &str,
     options: SearchOptions,
-) -> Result<Vec<SearchResult>, SearchError> {
-    // Create a client to use for embedding
-    let api_key = std::env::var("GEMINI_API_KEY").map_err(|_| {
-        SearchError::Embedding("GEMINI_API_KEY environment variable not set".to_string())
-    })?;
-    let client = Client::with_api_key_rate_limited(api_key);
-
+) -> Result<Vec<SearchResult>, SearchError>
+where
+    C: CompletionModel,
+    E: EmbeddingModel,
+{
     // Call the internal function with the client
-    search_index_with_client(db, &client, query, options).await
+    search_index_with_client(db, client, query, options).await
 }
 
 /// Search the index with the given query, options, and client
-pub async fn search_index_with_client(
+pub async fn search_index_with_client<C, E>(
     db: &Database,
-    client: &Client,
+    client: &Client<C, E>,
     query: &str,
     options: SearchOptions,
-) -> Result<Vec<SearchResult>, SearchError> {
+) -> Result<Vec<SearchResult>, SearchError>
+where
+    C: CompletionModel,
+    E: EmbeddingModel,
+{
     // Generate embedding for query
-    let content = Content::new().with_text(query);
     let query_embedding = client
-        .models()
-        .embed_content("text-embedding-004", content)
+        .embedding()
+        .embed_text(query)
         .await
         .map_err(|e| SearchError::Embedding(format!("Failed to generate embedding: {}", e)))?;
 
     // Convert embedding to binary blob for vector search
-    let embedding_values = &query_embedding.embedding.values;
-    let embedding_blob: Vec<u8> = embedding_values
-        .iter()
-        .flat_map(|f| f.to_le_bytes())
-        .collect();
+    let embedding_blob = query_embedding.to_binary();
 
     // Perform vector search
     vector_search(db, &embedding_blob, &options).await

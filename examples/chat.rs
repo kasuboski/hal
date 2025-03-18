@@ -1,6 +1,8 @@
 use hal::format_markdown;
-use hal::prelude::{Content, Part, Result};
-use hal::Client;
+use hal::prelude::Result;
+use rig::completion::Chat;
+use rig::message::{AssistantContent, Message, UserContent};
+use rig::providers::gemini;
 use std::io::{self, Write};
 use std::sync::Mutex;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -55,14 +57,15 @@ async fn main() -> Result<()> {
     // Initialize the client with API key from environment variable
     let api_key =
         std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
+    let gemini = gemini::Client::new(&api_key);
+    let client = hal::model::Client::new_gemini_free(gemini);
+    let completion = client.completion().clone();
+    let agent = completion
+        .agent()
+        .preamble("You are a helpful assistant.")
+        .build();
 
-    let client = Client::with_api_key(api_key);
-
-    // Create a chat session
-    let chat = client.chats().create("gemini-2.0-flash").await?;
-
-    // Store message history as Vec<Content>
-    let mut message_history: Vec<Content> = Vec::new();
+    let mut message_history: Vec<Message> = Vec::new();
 
     // Print welcome message with styling
     print_header("Chat session started with Gemini");
@@ -103,26 +106,23 @@ async fn main() -> Result<()> {
             break;
         }
 
-        let system = Content::new().with_text("You are a helpful assistant.");
         // Create user message content and add to history
-        let user_message = Content::new().with_role("user").with_text(input);
+        let user_message = Message::user(input);
 
         // Send message to LLM and get response
         // Add the new user message to history and send
         message_history.push(user_message);
-        match chat
-            .send_message(input, Some(system), Some(message_history.clone()))
-            .await
-        {
+
+        match agent.chat(input, message_history.clone()).await {
             Ok(response) => {
-                let response_text = response.text();
+                let response_text = response;
                 print_colored("AI", Color::Blue, true);
                 print_colored(": ", Color::White, true);
                 format_markdown(&response_text)?;
                 println!();
 
                 // Add AI response to history
-                message_history.push(Content::new().with_role("model").with_text(response_text));
+                message_history.push(Message::assistant(response_text));
             }
             Err(e) => {
                 // Print error message in red
@@ -143,11 +143,9 @@ async fn main() -> Result<()> {
                 println!();
 
                 // Add error response to history
-                message_history.push(
-                    Content::new()
-                        .with_role("model")
-                        .with_text("Sorry, I encountered an error processing your request."),
-                );
+                message_history.push(Message::assistant(
+                    "Sorry, I encountered an error processing your request.",
+                ));
             }
         }
 
@@ -158,33 +156,18 @@ async fn main() -> Result<()> {
     print_header("Chat History");
 
     for (i, message) in message_history.iter().enumerate() {
-        let role = message.role.as_deref().unwrap_or("unknown");
-        let text = message.parts.first().map_or("", |part| {
-            if let Part::Text(text) = part {
-                text
-            } else {
-                "[non-text content]"
-            }
-        });
-
         // Color-code based on role
-        match role {
-            "user" => {
+        match message {
+            Message::User { content } => {
                 print_colored("You", Color::Green, true);
                 print_colored(": ", Color::White, true);
-                print_colored(text, Color::White, false);
+                print_colored(user_text(&content.first()), Color::White, false);
                 println!();
             }
-            "model" => {
+            Message::Assistant { content } => {
                 print_colored("AI", Color::Blue, true);
                 print_colored(": ", Color::White, true);
-                print_colored(text, Color::White, false);
-                println!();
-            }
-            _ => {
-                print_colored(role, Color::Yellow, true);
-                print_colored(": ", Color::White, true);
-                print_colored(text, Color::White, false);
+                print_colored(assistant_text(&content.first()), Color::White, false);
                 println!();
             }
         }
@@ -201,4 +184,18 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn user_text(content: &UserContent) -> &str {
+    match content {
+        UserContent::Text(text) => text.text.as_str(),
+        _ => "[not text]",
+    }
+}
+
+fn assistant_text(content: &AssistantContent) -> &str {
+    match content {
+        AssistantContent::Text(text) => text.text.as_str(),
+        _ => "[not text]",
+    }
 }

@@ -1,6 +1,7 @@
 pub mod app;
 pub mod error;
 pub mod event;
+pub mod logging;
 pub mod markdown;
 pub mod ui;
 
@@ -9,8 +10,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use hal::prelude::{Content, Result};
+use hal::prelude::Result;
 use ratatui::{backend::CrosstermBackend, Terminal};
+use rig::{completion::Chat, message::Message, providers::gemini};
 use std::io;
 use tokio::sync::mpsc;
 
@@ -19,7 +21,7 @@ use crate::tui::event::{AppEvent, Event};
 use crate::tui::ui::draw;
 
 /// Run the TUI application
-pub async fn run(api_key: String, model: String) -> Result<()> {
+pub async fn run(api_key: String) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -27,11 +29,14 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Initialize the client
-    let client = hal::Client::with_api_key(api_key);
-
-    // Create a chat session
-    let chat = client.chats().create(&model).await?;
+    // Initialize the client and create agent
+    let gemini = gemini::Client::new(&api_key);
+    let client = hal::model::Client::new_gemini_free(gemini);
+    let completion = client.completion().clone();
+    let agent = completion
+        .agent()
+        .preamble("You are a helpful assistant.")
+        .build();
 
     // Create app state
     let mut app = App::new();
@@ -43,18 +48,19 @@ pub async fn run(api_key: String, model: String) -> Result<()> {
     );
 
     // Create channels for LLM communication
-    let (llm_tx, mut llm_rx) = mpsc::unbounded_channel();
+    let (llm_tx, mut llm_rx) = mpsc::unbounded_channel::<String>();
     let event_sender = app.event_sender();
 
     // Set up LLM response handler
-    let chat_clone = chat.clone();
+    // let agent_clone = agent.clone();
     tokio::spawn(async move {
+        let mut message_history = Vec::new();
         while let Some(input) = llm_rx.recv().await {
-            let system = Content::new().with_text("You are a helpful assistant.");
-            let result = chat_clone.send_message(&input, Some(system), None).await;
-            match result {
+            match agent.chat(input.as_ref(), message_history.clone()).await {
                 Ok(response) => {
-                    let _ = event_sender.send(Event::App(AppEvent::LLMResponse(response.text())));
+                    message_history.push(Message::user(input));
+                    message_history.push(Message::assistant(&response));
+                    let _ = event_sender.send(Event::App(AppEvent::LLMResponse(response)));
                 }
                 Err(e) => {
                     let _ = event_sender.send(Event::App(AppEvent::LLMError(e.to_string())));

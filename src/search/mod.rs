@@ -16,14 +16,22 @@ pub use crate::index::{Database, IndexedChunk, Website};
 ///
 /// This module provides functionality to search the indexed content
 /// using vector similarity search and filtering options.
-pub struct SearchSystem {
+pub struct SearchSystem<C, E>
+where
+    C: rig::completion::CompletionModel,
+    E: rig::embeddings::EmbeddingModel,
+{
     db: Database,
-    client: crate::gemini::Client,
+    client: crate::model::Client<C, E>,
 }
 
-impl SearchSystem {
+impl<C, E> SearchSystem<C, E>
+where
+    C: rig::completion::CompletionModel,
+    E: rig::embeddings::EmbeddingModel,
+{
     /// Create a new search system with the given database
-    pub fn new(db: Database, client: crate::gemini::Client) -> Self {
+    pub fn new(db: Database, client: crate::model::Client<C, E>) -> Self {
         Self { db, client }
     }
 
@@ -42,7 +50,7 @@ impl SearchSystem {
     }
 
     /// Get the client reference
-    pub fn client(&self) -> &crate::gemini::Client {
+    pub fn client(&self) -> &crate::model::Client<C, E> {
         &self.client
     }
 }

@@ -5,19 +5,21 @@
 
 mod chunking;
 mod config;
-mod embedding;
 mod error;
 mod llm_integration;
 
 pub use chunking::chunk_markdown;
 pub use config::{ChunkOptions, ProcessorConfig};
-pub use embedding::generate_embedding;
 pub use error::ProcessError;
 pub use llm_integration::{generate_context_string, generate_summary};
 
 use crate::crawler::CrawledPage;
-use crate::gemini::Client;
+use crate::model::Client;
 use futures::future;
+use rig::{
+    completion::CompletionModel,
+    embeddings::{Embedding, EmbeddingModel},
+};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, info};
@@ -29,7 +31,7 @@ pub struct ProcessedChunk {
     pub text: String,
 
     /// The embedding of the chunk
-    pub embedding: Vec<f32>,
+    pub embedding: Embedding,
 
     /// A summary of the chunk
     pub summary: String,
@@ -58,7 +60,7 @@ pub struct ChunkMetadata {
 ///
 /// # Arguments
 ///
-/// * `client` - The Gemini client
+/// * `client` - The client to use
 /// * `text` - The text content
 /// * `summary` - The summary of the text
 /// * `context` - The context information
@@ -66,17 +68,30 @@ pub struct ChunkMetadata {
 /// # Returns
 ///
 /// A vector of floats representing the embedding
-pub async fn generate_combined_embedding(
-    client: &Client,
+pub async fn generate_combined_embedding<C, E>(
+    client: &Client<C, E>,
     text: &str,
     summary: &str,
     context: &str,
-) -> Result<Vec<f32>, ProcessError> {
+) -> Result<Embedding, ProcessError>
+where
+    C: CompletionModel,
+    E: EmbeddingModel,
+{
     // Combine the text, summary, and context
     let combined_text = format!("Text: {}\nSummary: {}\nContext: {}", text, summary, context);
 
-    // Generate embedding using the existing function
-    generate_embedding(client, &combined_text).await
+    // Generate embedding using the embedding model
+    let embeddings = client
+        .embedding()
+        .embed_texts(vec![combined_text])
+        .await?
+        .first()
+        .ok_or(ProcessError::EmbeddingProcessing(
+            "failed to extract embedding".to_string(),
+        ))?
+        .clone();
+    Ok(embeddings)
 }
 
 /// Process content from a crawled page
@@ -90,11 +105,15 @@ pub async fn generate_combined_embedding(
 /// # Returns
 ///
 /// A vector of processed chunks
-pub async fn process_content(
-    client: &Client,
+pub async fn process_content<C, E>(
+    client: &Client<C, E>,
     page: CrawledPage,
     config: ProcessorConfig,
-) -> Result<Vec<ProcessedChunk>, ProcessError> {
+) -> Result<Vec<ProcessedChunk>, ProcessError>
+where
+    C: CompletionModel + Clone + Send + Sync + 'static,
+    E: EmbeddingModel + Clone + Send + Sync + 'static,
+{
     debug!("Processing content from {}", page.url);
 
     // Chunk the markdown content
@@ -113,13 +132,12 @@ pub async fn process_content(
             let llm_model = config.llm_model.clone();
             let metadata = page.metadata.clone();
             let url = page.url.clone();
-            let client = client.clone(); // Clone the client for each task
+            let client = client.clone();
 
             tokio::spawn(async move {
-                let _permit = permit.await?;
-                // Create a new client with the same API key
-                // wasn't seeing this contribute to a rate limit at all
-                let embedding_client = Client::default_from_client(&client);
+                let _permit = permit
+                    .await
+                    .map_err(|e| ProcessError::Semaphore(e.to_string()));
 
                 // Generate summary using LLM
                 let summary = generate_summary(&client, &chunk.text, &llm_model).await?;
@@ -131,8 +149,7 @@ pub async fn process_content(
 
                 // Generate embedding from combined text, summary, and context
                 let embedding =
-                    generate_combined_embedding(&embedding_client, &chunk.text, &summary, &context)
-                        .await?;
+                    generate_combined_embedding(&client, &chunk.text, &summary, &context).await?;
 
                 // Create chunk metadata
                 let chunk_metadata = ChunkMetadata {
@@ -215,9 +232,13 @@ mod tests {
 
     #[test]
     fn test_processed_chunk() {
+        let embedding = Embedding {
+            document: "Test text".to_string(),
+            vec: vec![0.1, 0.2, 0.3],
+        };
         let chunk = ProcessedChunk {
             text: "Test text".to_string(),
-            embedding: vec![0.1, 0.2, 0.3],
+            embedding,
             summary: "Test summary".to_string(),
             context: "Test context".to_string(),
             metadata: ChunkMetadata {
@@ -228,7 +249,7 @@ mod tests {
         };
 
         assert_eq!(chunk.text, "Test text");
-        assert_eq!(chunk.embedding, vec![0.1, 0.2, 0.3]);
+        assert_eq!(chunk.embedding.vec, vec![0.1, 0.2, 0.3]);
         assert_eq!(chunk.summary, "Test summary");
         assert_eq!(chunk.context, "Test context");
         assert_eq!(chunk.metadata.source_url, "https://example.com");

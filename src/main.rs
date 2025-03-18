@@ -2,6 +2,12 @@ mod tui;
 
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
+use rig::{
+    agent::AgentBuilder,
+    completion::{CompletionModel, Prompt},
+    embeddings::EmbeddingModel,
+    providers::gemini,
+};
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
@@ -165,38 +171,46 @@ struct ReembedArgs {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
-
     // Parse command line arguments
     let cli = Cli::parse();
 
     // Execute the appropriate command
     match cli.command {
-        Some(Commands::Chat(args)) => {
+        Some(Commands::Chat(_args)) => {
             // Get API key from environment variable
             let api_key = std::env::var("GEMINI_API_KEY")
                 .expect("GEMINI_API_KEY environment variable must be set");
 
-            // Print the selected model
-            println!("Starting chat with model: {}", args.model);
+            // Setup file-based logging for TUI
+            tui::logging::setup_logging()?;
 
             // Run the TUI application
-            tui::run(api_key, args.model).await?;
+            tui::run(api_key).await?;
         }
         Some(Commands::Crawl(args)) => {
+            // Initialize tracing
+            tracing_subscriber::fmt::init();
+
             crawl_command(args).await?;
         }
         Some(Commands::Index(args)) => {
+            // Initialize tracing
+            tracing_subscriber::fmt::init();
             index_command(args).await?;
         }
         Some(Commands::Search(args)) => {
+            // Initialize tracing
+            tracing_subscriber::fmt::init();
             search_command(args).await?;
         }
         Some(Commands::List(args)) => {
+            // Initialize tracing
+            tracing_subscriber::fmt::init();
             list_command(args).await?;
         }
         Some(Commands::Reembed(args)) => {
+            // Initialize tracing
+            tracing_subscriber::fmt::init();
             reembed_command(args).await?;
         }
         None => {
@@ -248,7 +262,8 @@ async fn index_command(args: IndexArgs) -> Result<(), Box<dyn std::error::Error>
         std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
 
     // Create client
-    let client = hal::Client::with_api_key_rate_limited(api_key);
+    let gemini = gemini::Client::new(&api_key);
+    let client = hal::model::Client::new_gemini(gemini);
 
     // Create database connection
     let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
@@ -369,7 +384,8 @@ async fn search_command(args: SearchArgs) -> Result<(), Box<dyn std::error::Erro
     // Create a client
     let api_key =
         std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
-    let client = hal::Client::with_api_key_rate_limited(api_key);
+    let gemini = gemini::Client::new(&api_key);
+    let client = hal::model::Client::new_gemini(gemini);
 
     // Create search options
     let options = hal::search::SearchOptions {
@@ -453,37 +469,38 @@ fn prepare_rag_context(results: &[hal::search::SearchResult]) -> String {
 }
 
 /// Generate an answer using RAG
-async fn generate_answer_with_rag(
-    client: &hal::Client,
+async fn generate_answer_with_rag<C, E>(
+    client: &hal::model::Client<C, E>,
     query: &str,
     context: &str,
-    model: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    use hal::prelude::Content;
+    _model: &str,
+) -> Result<String, Box<dyn std::error::Error>>
+where
+    C: CompletionModel,
+    E: EmbeddingModel,
+{
+    use tracing::{debug, trace};
+    debug!("Generating answer for query of length {}", query.len());
 
-    // Create system prompt for RAG
-    let system_prompt = "You are a helpful assistant that answers questions based on the provided context. \
-    Use only the information from the context to answer the question. \
-    If the context doesn't contain enough information to answer the question fully, \
-    acknowledge the limitations and provide the best answer possible with the available information. \
-    Be concise and accurate.";
+    let completion = client.completion().clone();
+    let agent = AgentBuilder::new(completion)
+        .preamble("You are a helpful assistant that answers questions based on the provided context. \
+        Use only the information from the context to answer the question. \
+        If the context doesn't contain enough information to answer the question fully, \
+        acknowledge the limitations and provide the best answer possible with the available information. \
+        Be concise and accurate.\n")
+        .build();
 
     // Create user prompt with context and query
     let user_prompt = format!("Context:\n{}\n\nQuestion: {}\n\nAnswer:", context, query);
 
-    // Create content for the request
-    let system_content = Content::new().with_role("system").with_text(system_prompt);
-    let user_content = Content::new().with_role("user").with_text(user_prompt);
-
-    // Generate content
-    let response = client
-        .models()
-        .generate_content(model, Some(system_content), vec![user_content])
+    let answer = agent
+        .prompt(user_prompt)
         .await
         .map_err(|e| format!("Failed to generate answer: {}", e))?;
 
-    // Return the generated text
-    Ok(response.text())
+    trace!("Generated answer of length {}", answer.len());
+    Ok(answer)
 }
 
 async fn list_command(args: ListArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -549,7 +566,8 @@ async fn reembed_command(args: ReembedArgs) -> Result<(), Box<dyn std::error::Er
         std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
 
     // Create client for embedding generation
-    let client = hal::Client::with_api_key_rate_limited(api_key);
+    let gemini = gemini::Client::new(&api_key);
+    let client = hal::model::Client::new_gemini(gemini);
 
     // Create a channel for progress updates
     let (progress_sender, mut progress_receiver) = mpsc::channel(100);

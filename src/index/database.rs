@@ -3,7 +3,9 @@
 use crate::index::error::DbError;
 use crate::index::schema;
 use crate::index::{IndexedChunk, Website};
+use crate::model::embedding::EmbeddingConversion;
 use libsql::{params, Connection, Row, Rows};
+use rig::embeddings::Embedding;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::debug;
 
@@ -363,7 +365,7 @@ impl Database {
                     indexed_chunk.text,
                     indexed_chunk.summary,
                     indexed_chunk.context,
-                    libsql::Value::Blob(indexed_chunk.embedding.iter().flat_map(|f| f.to_le_bytes()).collect()),
+                    libsql::Value::Blob(indexed_chunk.embedding.to_binary()),
                     indexed_chunk.position,
                     indexed_chunk.heading,
                 ],
@@ -390,7 +392,7 @@ impl Database {
                 chunk.text.clone(),
                 chunk.summary.clone(),
                 chunk.context.clone(),
-                libsql::Value::Blob(chunk.embedding.iter().flat_map(|f| f.to_le_bytes()).collect()),
+                libsql::Value::Blob(chunk.embedding.to_binary()),
                 chunk.position,
                 chunk.heading.clone(),
             ],
@@ -533,13 +535,8 @@ impl Database {
             .get(6)
             .map_err(|e| DbError::Data(format!("Failed to get embedding: {}", e)))?;
 
-        // Convert the blob to Vec<f32>
-        let mut embedding = Vec::with_capacity(embedding_blob.len() / 4);
-        for chunk in embedding_blob.chunks_exact(4) {
-            let mut bytes = [0u8; 4];
-            bytes.copy_from_slice(chunk);
-            embedding.push(f32::from_le_bytes(bytes));
-        }
+        // Convert the blob to Vec<f32> using EmbeddingConversion trait
+        let embedding: Embedding = EmbeddingConversion::from_binary(&embedding_blob);
 
         Ok(IndexedChunk {
             id: row
@@ -585,13 +582,17 @@ impl Database {
     /// # Returns
     ///
     /// The number of chunks that were reembedded
-    pub async fn reembed_all_chunks(
-        &self,
-        client: &crate::gemini::Client,
+    pub async fn reembed_all_chunks<'a, C, E>(
+        &'a self,
+        client: &'a crate::model::Client<C, E>,
         concurrency: usize,
         source_filter: Option<String>,
         progress_sender: Option<tokio::sync::mpsc::Sender<(i64, String)>>,
-    ) -> Result<usize, DbError> {
+    ) -> Result<usize, DbError>
+    where
+        C: rig::completion::CompletionModel + Send + Sync + 'static,
+        E: rig::embeddings::EmbeddingModel + Send + Sync + 'static,
+    {
         use crate::processor::generate_combined_embedding;
         use futures::future;
         use std::sync::Arc;
@@ -634,7 +635,7 @@ impl Database {
         // Process chunks in parallel with bounded concurrency
         for chunk in chunks {
             let permit = semaphore.clone().acquire_owned();
-            let embedding_client = crate::gemini::Client::default_from_client(client);
+            let client = client.clone();
             let db = self.clone();
             let progress_sender = progress_sender.clone();
             let chunk_id = chunk.id;
@@ -649,7 +650,7 @@ impl Database {
 
                 // Generate new embedding using combined text, summary, and context
                 let new_embedding = generate_combined_embedding(
-                    &embedding_client,
+                    &client,
                     &chunk.text,
                     &chunk.summary,
                     &chunk.context,
@@ -658,7 +659,8 @@ impl Database {
                 .map_err(|e| DbError::Other(format!("Failed to generate embedding: {}", e)))?;
 
                 // Update chunk in database
-                db.update_chunk_embedding(chunk_id, &new_embedding).await?;
+                db.update_chunk_embedding(chunk_id, &new_embedding.to_vec())
+                    .await?;
 
                 // Send progress update if sender is provided
                 if let Some(sender) = progress_sender {

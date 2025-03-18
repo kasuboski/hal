@@ -9,6 +9,7 @@ mod schema;
 
 pub use database::Database;
 pub use error::DbError;
+use rig::embeddings::Embedding;
 
 /// Represents a website in the index
 #[derive(Debug, Clone)]
@@ -57,7 +58,7 @@ pub struct IndexedChunk {
     pub context: String,
 
     /// Embedding of the chunk
-    pub embedding: Vec<f32>,
+    pub embedding: Embedding,
 
     /// Position of the chunk in the document
     pub position: i64,
@@ -100,7 +101,10 @@ mod tests {
             text: "This is a test chunk".to_string(),
             summary: "Test chunk summary".to_string(),
             context: "Context for the test chunk".to_string(),
-            embedding: vec![0.1, 0.2, 0.3, 0.4],
+            embedding: Embedding {
+                document: "This is a test chunk".to_string(),
+                vec: vec![0.1, 0.2, 0.3, 0.4],
+            },
             position: 1,
             heading: Some("Test Heading".to_string()),
         };
@@ -111,7 +115,8 @@ mod tests {
         assert_eq!(chunk.text, "This is a test chunk");
         assert_eq!(chunk.summary, "Test chunk summary");
         assert_eq!(chunk.context, "Context for the test chunk");
-        assert_eq!(chunk.embedding, vec![0.1, 0.2, 0.3, 0.4]);
+        assert_eq!(chunk.embedding.document, "This is a test chunk");
+        assert_eq!(chunk.embedding.vec, vec![0.1, 0.2, 0.3, 0.4]);
         assert_eq!(chunk.position, 1);
         assert_eq!(chunk.heading, Some("Test Heading".to_string()));
     }
@@ -125,7 +130,10 @@ mod tests {
             text: "This is another test chunk".to_string(),
             summary: "Another test chunk summary".to_string(),
             context: "Context for another test chunk".to_string(),
-            embedding: vec![0.5, 0.6, 0.7, 0.8],
+            embedding: Embedding {
+                document: "This is another test chunk".to_string(),
+                vec: vec![0.5, 0.6, 0.7, 0.8],
+            },
             position: 2,
             heading: None,
         };
@@ -136,7 +144,8 @@ mod tests {
         assert_eq!(chunk.text, "This is another test chunk");
         assert_eq!(chunk.summary, "Another test chunk summary");
         assert_eq!(chunk.context, "Context for another test chunk");
-        assert_eq!(chunk.embedding, vec![0.5, 0.6, 0.7, 0.8]);
+        assert_eq!(chunk.embedding.document, "This is another test chunk");
+        assert_eq!(chunk.embedding.vec, vec![0.5, 0.6, 0.7, 0.8]);
         assert_eq!(chunk.position, 2);
         assert_eq!(chunk.heading, None);
     }
