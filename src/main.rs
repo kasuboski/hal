@@ -474,6 +474,7 @@ fn prepare_rag_context(results: &[hal::search::SearchResult]) -> String {
     for (i, result) in results.iter().enumerate() {
         context.push_str(&format!("Source {}:\n", i + 1));
         context.push_str(&format!("URL: {}\n", result.url));
+        context.push_str(&format!("Context: {}\n", result.context));
         context.push_str(&format!("Content: {}\n\n", result.text));
     }
 
