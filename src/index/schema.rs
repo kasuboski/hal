@@ -28,7 +28,6 @@ pub async fn initialize_schema(conn: &Connection) -> Result<(), DbError> {
             website_id INTEGER NOT NULL,
             url TEXT NOT NULL,
             text TEXT NOT NULL,
-            summary TEXT NOT NULL,
             context TEXT NOT NULL,
             embedding F32_BLOB(768) NOT NULL,
             position INTEGER NOT NULL,

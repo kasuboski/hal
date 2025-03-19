@@ -51,9 +51,6 @@ pub struct IndexedChunk {
     /// Text of the chunk
     pub text: String,
 
-    /// Summary of the chunk
-    pub summary: String,
-
     /// Context string for the chunk
     pub context: String,
 
@@ -99,7 +96,6 @@ mod tests {
             website_id: 1,
             url: "https://example.com/page".to_string(),
             text: "This is a test chunk".to_string(),
-            summary: "Test chunk summary".to_string(),
             context: "Context for the test chunk".to_string(),
             embedding: Embedding {
                 document: "This is a test chunk".to_string(),
@@ -113,7 +109,6 @@ mod tests {
         assert_eq!(chunk.website_id, 1);
         assert_eq!(chunk.url, "https://example.com/page");
         assert_eq!(chunk.text, "This is a test chunk");
-        assert_eq!(chunk.summary, "Test chunk summary");
         assert_eq!(chunk.context, "Context for the test chunk");
         assert_eq!(chunk.embedding.document, "This is a test chunk");
         assert_eq!(chunk.embedding.vec, vec![0.1, 0.2, 0.3, 0.4]);
@@ -128,7 +123,6 @@ mod tests {
             website_id: 1,
             url: "https://example.com/page".to_string(),
             text: "This is another test chunk".to_string(),
-            summary: "Another test chunk summary".to_string(),
             context: "Context for another test chunk".to_string(),
             embedding: Embedding {
                 document: "This is another test chunk".to_string(),
@@ -142,7 +136,6 @@ mod tests {
         assert_eq!(chunk.website_id, 1);
         assert_eq!(chunk.url, "https://example.com/page");
         assert_eq!(chunk.text, "This is another test chunk");
-        assert_eq!(chunk.summary, "Another test chunk summary");
         assert_eq!(chunk.context, "Context for another test chunk");
         assert_eq!(chunk.embedding.document, "This is another test chunk");
         assert_eq!(chunk.embedding.vec, vec![0.5, 0.6, 0.7, 0.8]);

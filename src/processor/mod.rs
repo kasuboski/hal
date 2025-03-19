@@ -24,7 +24,7 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, info, instrument};
 
-/// Represents a processed chunk with its embedding, summary, and context
+/// Represents a processed chunk with its embedding and context
 #[derive(Debug, Clone)]
 pub struct ProcessedChunk {
     /// The text of the chunk
@@ -32,9 +32,6 @@ pub struct ProcessedChunk {
 
     /// The embedding of the chunk
     pub embedding: Embedding,
-
-    /// A summary of the chunk
-    pub summary: String,
 
     /// A context string for the chunk
     pub context: String,
@@ -56,13 +53,12 @@ pub struct ChunkMetadata {
     pub heading: Option<String>,
 }
 
-/// Generate an embedding from combined text, summary, and context
+/// Generate an embedding from combined text and context
 ///
 /// # Arguments
 ///
 /// * `client` - The client to use
 /// * `text` - The text content
-/// * `summary` - The summary of the text
 /// * `context` - The context information
 ///
 /// # Returns
@@ -72,15 +68,14 @@ pub struct ChunkMetadata {
 pub async fn generate_combined_embedding<C, E>(
     client: &Client<C, E>,
     text: &str,
-    summary: &str,
     context: &str,
 ) -> Result<Embedding, ProcessError>
 where
     C: CompletionModel,
     E: EmbeddingModel,
 {
-    // Combine the text, summary, and context
-    let combined_text = format!("Text: {}\nSummary: {}\nContext: {}", text, summary, context);
+    // Combine the text and context
+    let combined_text = format!("Context: {}\nText: {}", text, context);
 
     // Generate embedding using the embedding model
     let embeddings = client
@@ -122,6 +117,9 @@ where
     let chunks = chunk_markdown(&page.content, &config.chunk_options)?;
     let mut processed_chunks = Vec::new();
 
+    // Generate summary of page to use for context
+    let summary = generate_summary(&client, &page.content, &config.llm_model).await?;
+
     info!("Created {} chunks from {}", chunks.len(), page.url);
 
     // Process chunks in parallel with bounded concurrency
@@ -134,6 +132,7 @@ where
             let llm_model = config.llm_model.clone();
             let metadata = page.metadata.clone();
             let url = page.url.clone();
+            let summary = summary.clone();
             let client = client.clone();
 
             if chunk.text.len() <= 100 {
@@ -145,17 +144,19 @@ where
                     .await
                     .map_err(|e| ProcessError::Semaphore(e.to_string()));
 
-                // Generate summary using LLM
-                let summary = generate_summary(&client, &chunk.text, &llm_model).await?;
-
                 // Generate context string using LLM
-                let context =
-                    generate_context_string(&client, &chunk.text, &url, &metadata, &llm_model)
-                        .await?;
+                let context = generate_context_string(
+                    &client,
+                    &chunk.text,
+                    &url,
+                    &summary,
+                    &metadata,
+                    &llm_model,
+                )
+                .await?;
 
-                // Generate embedding from combined text, summary, and context
-                let embedding =
-                    generate_combined_embedding(&client, &chunk.text, &summary, &context).await?;
+                // Generate embedding from combined text and context
+                let embedding = generate_combined_embedding(&client, &chunk.text, &context).await?;
 
                 // Create chunk metadata
                 let chunk_metadata = ChunkMetadata {
@@ -168,7 +169,6 @@ where
                 let processed_chunk = ProcessedChunk {
                     text: chunk.text,
                     embedding,
-                    summary,
                     context,
                     metadata: chunk_metadata,
                 };
@@ -245,7 +245,6 @@ mod tests {
         let chunk = ProcessedChunk {
             text: "Test text".to_string(),
             embedding,
-            summary: "Test summary".to_string(),
             context: "Test context".to_string(),
             metadata: ChunkMetadata {
                 source_url: "https://example.com".to_string(),
@@ -256,7 +255,6 @@ mod tests {
 
         assert_eq!(chunk.text, "Test text");
         assert_eq!(chunk.embedding.vec, vec![0.1, 0.2, 0.3]);
-        assert_eq!(chunk.summary, "Test summary");
         assert_eq!(chunk.context, "Test context");
         assert_eq!(chunk.metadata.source_url, "https://example.com");
         assert_eq!(chunk.metadata.position, 1);

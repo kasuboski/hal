@@ -62,6 +62,7 @@ pub async fn generate_context_string<C, E>(
     client: &Client<C, E>,
     text: &str,
     url: &str,
+    summary: &str,
     metadata: &crate::crawler::PageMetadata,
     _model: &str,
 ) -> Result<String, ProcessError>
@@ -79,11 +80,13 @@ where
             Source URL: {}\n\
             Title: {}\n\
             Description: {}\n\
+            Page Summary: {}\n\
             Domain: {}\n\n\
             Text:\n",
             url,
             metadata.title.as_deref().unwrap_or("Unknown"),
             metadata.description.as_deref().unwrap_or("No description available"),
+            summary,
             metadata.domain
         );
     let completion = client.completion().clone();

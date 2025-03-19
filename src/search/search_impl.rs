@@ -40,9 +40,6 @@ pub struct SearchResult {
     /// Text content of the chunk
     pub text: String,
 
-    /// Summary of the chunk
-    pub summary: String,
-
     /// Context information
     pub context: String,
 
@@ -107,7 +104,7 @@ async fn vector_search(
     // Build SQL query using vector_top_k for proper vector similarity search
     let mut sql = String::from(
         "SELECT 
-            c.id, c.text, c.summary, c.context, c.url,
+            c.id, c.text, c.context, c.url,
             w.url as website_url, w.domain as website_domain
         FROM vector_top_k('chunks_idx', ?, ?) as v
         JOIN chunks c ON c.rowid = v.id
@@ -158,19 +155,16 @@ async fn process_results(mut rows: libsql::Rows) -> Result<Vec<SearchResult>, Se
             text: row
                 .get(1)
                 .map_err(|e| SearchError::ResultProcessing(format!("Failed to get text: {}", e)))?,
-            summary: row.get(2).map_err(|e| {
-                SearchError::ResultProcessing(format!("Failed to get summary: {}", e))
-            })?,
-            context: row.get(3).map_err(|e| {
+            context: row.get(2).map_err(|e| {
                 SearchError::ResultProcessing(format!("Failed to get context: {}", e))
             })?,
             url: row
-                .get(4)
+                .get(3)
                 .map_err(|e| SearchError::ResultProcessing(format!("Failed to get url: {}", e)))?,
-            website_url: row.get(5).map_err(|e| {
+            website_url: row.get(4).map_err(|e| {
                 SearchError::ResultProcessing(format!("Failed to get website_url: {}", e))
             })?,
-            website_domain: row.get(6).map_err(|e| {
+            website_domain: row.get(5).map_err(|e| {
                 SearchError::ResultProcessing(format!("Failed to get website_domain: {}", e))
             })?,
         });

@@ -363,7 +363,6 @@ impl Database {
                 website_id,
                 url: url.to_string(),
                 text: chunk.text,
-                summary: chunk.summary,
                 context: chunk.context,
                 embedding: chunk.embedding,
                 position: chunk.metadata.position as i64,
@@ -378,7 +377,6 @@ impl Database {
                     indexed_chunk.website_id,
                     indexed_chunk.url,
                     indexed_chunk.text,
-                    indexed_chunk.summary,
                     indexed_chunk.context,
                     libsql::Value::Blob(indexed_chunk.embedding.to_binary()),
                     indexed_chunk.position,
@@ -398,20 +396,22 @@ impl Database {
     /// Add a chunk to the index
     pub async fn add_chunk(&self, chunk: &IndexedChunk) -> Result<i64, DbError> {
         // Insert the chunk with the embedding as a binary blob
-        self.conn.execute(
-            "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            params![
-                chunk.website_id,
-                chunk.url.clone(),
-                chunk.text.clone(),
-                chunk.summary.clone(),
-                chunk.context.clone(),
-                libsql::Value::Blob(chunk.embedding.to_binary()),
-                chunk.position,
-                chunk.heading.clone(),
-            ],
-        ).await.map_err(|e| DbError::Query(format!("Failed to add chunk: {}", e)))?;
+        self.conn
+            .execute(
+                "INSERT INTO chunks (website_id, url, text, context, embedding, position, heading)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    chunk.website_id,
+                    chunk.url.clone(),
+                    chunk.text.clone(),
+                    chunk.context.clone(),
+                    libsql::Value::Blob(chunk.embedding.to_binary()),
+                    chunk.position,
+                    chunk.heading.clone(),
+                ],
+            )
+            .await
+            .map_err(|e| DbError::Query(format!("Failed to add chunk: {}", e)))?;
 
         // Get the ID of the inserted chunk
         let mut rows = self
@@ -457,7 +457,7 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, website_id, url, text, summary, context, embedding, position, heading
+                "SELECT id, website_id, url, text, context, embedding, position, heading
              FROM chunks
              WHERE website_id = ?",
                 params![website_id],
@@ -547,7 +547,7 @@ impl Database {
     fn row_to_chunk(&self, row: &Row) -> Result<IndexedChunk, DbError> {
         // Get the embedding as a binary blob and convert it to Vec<f32>
         let embedding_blob: Vec<u8> = row
-            .get(6)
+            .get(5)
             .map_err(|e| DbError::Data(format!("Failed to get embedding: {}", e)))?;
 
         // Convert the blob to Vec<f32> using EmbeddingConversion trait
@@ -566,18 +566,15 @@ impl Database {
             text: row
                 .get(3)
                 .map_err(|e| DbError::Data(format!("Failed to get text: {}", e)))?,
-            summary: row
-                .get(4)
-                .map_err(|e| DbError::Data(format!("Failed to get summary: {}", e)))?,
             context: row
-                .get(5)
+                .get(4)
                 .map_err(|e| DbError::Data(format!("Failed to get context: {}", e)))?,
             embedding,
             position: row
-                .get(7)
+                .get(6)
                 .map_err(|e| DbError::Data(format!("Failed to get position: {}", e)))?,
             heading: row
-                .get(8)
+                .get(7)
                 .map_err(|e| DbError::Data(format!("Failed to get heading: {}", e)))?,
         })
     }
@@ -597,6 +594,7 @@ impl Database {
     /// # Returns
     ///
     /// The number of chunks that were reembedded
+    #[instrument(skip(self, client, progress_sender))]
     pub async fn reembed_all_chunks<'a, C, E>(
         &'a self,
         client: &'a crate::model::Client<C, E>,
@@ -616,7 +614,7 @@ impl Database {
 
         // Get all chunks from the database
         let mut sql = String::from(
-            "SELECT c.id, c.website_id, c.url, c.text, c.summary, c.context, c.embedding, c.position, c.heading
+            "SELECT c.id, c.website_id, c.url, c.text, c.context, c.embedding, c.position, c.heading
              FROM chunks c
              JOIN websites w ON c.website_id = w.id",
         );
@@ -663,15 +661,13 @@ impl Database {
 
                 debug!("Reembedding chunk {} from {}", chunk_id, chunk_url);
 
-                // Generate new embedding using combined text, summary, and context
-                let new_embedding = generate_combined_embedding(
-                    &client,
-                    &chunk.text,
-                    &chunk.summary,
-                    &chunk.context,
-                )
-                .await
-                .map_err(|e| DbError::Other(format!("Failed to generate embedding: {}", e)))?;
+                // Generate new embedding using combined text and context
+                let new_embedding =
+                    generate_combined_embedding(&client, &chunk.text, &chunk.context)
+                        .await
+                        .map_err(|e| {
+                            DbError::Other(format!("Failed to generate embedding: {}", e))
+                        })?;
 
                 // Update chunk in database
                 db.update_chunk_embedding(chunk_id, &new_embedding.to_vec())
