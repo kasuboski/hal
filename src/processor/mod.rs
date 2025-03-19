@@ -106,7 +106,7 @@ where
 /// # Returns
 ///
 /// A vector of processed chunks
-#[instrument(skip(client))]
+#[instrument(skip(client, page), fields(url = page.url))]
 pub async fn process_content<C, E>(
     client: &Client<C, E>,
     page: CrawledPage,
@@ -129,14 +129,18 @@ where
 
     let tasks = chunks
         .into_iter()
-        .map(|chunk| {
+        .filter_map(|chunk| {
             let permit = semaphore.clone().acquire_owned();
             let llm_model = config.llm_model.clone();
             let metadata = page.metadata.clone();
             let url = page.url.clone();
             let client = client.clone();
 
-            tokio::spawn(async move {
+            if chunk.text.len() <= 100 {
+                debug!("Skipping small chunk");
+                return None;
+            }
+            Some(tokio::spawn(async move {
                 let _permit = permit
                     .await
                     .map_err(|e| ProcessError::Semaphore(e.to_string()));
@@ -170,7 +174,7 @@ where
                 };
 
                 Ok::<ProcessedChunk, ProcessError>(processed_chunk)
-            })
+            }))
         })
         .collect::<Vec<_>>();
 

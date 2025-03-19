@@ -39,6 +39,17 @@ impl Database {
         Self::new(conn).await
     }
 
+    pub async fn new_local_libsql() -> Result<Self, DbError> {
+        let db = libsql::Builder::new_remote("http://127.0.0.1:8080".to_string(), "".to_string())
+            .build()
+            .await
+            .map_err(|e| DbError::Connection(format!("Failed to open database: {}", e)))?;
+        let conn = db
+            .connect()
+            .map_err(|e| DbError::Connection(format!("Failed to connect to database: {}", e)))?;
+        Self::new(conn).await
+    }
+
     /// Execute a custom query with parameters
     pub async fn execute_query<P>(&self, sql: &str, params: P) -> Result<Rows, DbError>
     where
@@ -70,7 +81,7 @@ impl Database {
         };
 
         self.conn.execute(
-            "INSERT INTO websites (url, domain, first_index_date, last_index_date, page_count, status) 
+            "INSERT INTO websites (url, domain, first_index_date, last_index_date, page_count, status)
              VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(url) DO UPDATE SET
              domain = excluded.domain,
@@ -129,8 +140,8 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status 
-             FROM websites 
+                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status
+             FROM websites
              WHERE url = ?",
                 params![base_url],
             )
@@ -151,7 +162,7 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status 
+                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status
              FROM websites",
                 params![],
             )
@@ -183,8 +194,8 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status 
-             FROM websites 
+                "SELECT id, url, domain, first_index_date, last_index_date, page_count, status
+             FROM websites
              WHERE status = 'active' AND (last_index_date IS NULL OR last_index_date < ?)",
                 params![now - 604800], // 7 days in seconds
             )
@@ -240,6 +251,7 @@ impl Database {
     }
 
     /// Update website index with new chunks
+    #[instrument(skip(self))]
     pub async fn update_website_index(
         &self,
         url: &str,
@@ -306,7 +318,7 @@ impl Database {
 
                 // Add the website
                 tx.execute(
-                    "INSERT INTO websites (url, domain, first_index_date, last_index_date, page_count, status) 
+                    "INSERT INTO websites (url, domain, first_index_date, last_index_date, page_count, status)
                      VALUES (?, ?, ?, ?, ?, ?)",
                     params![
                         website.url,
@@ -360,7 +372,7 @@ impl Database {
 
             // Insert the chunk with the embedding as a binary blob
             tx.execute(
-                "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading) 
+                "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 params![
                     indexed_chunk.website_id,
@@ -387,7 +399,7 @@ impl Database {
     pub async fn add_chunk(&self, chunk: &IndexedChunk) -> Result<i64, DbError> {
         // Insert the chunk with the embedding as a binary blob
         self.conn.execute(
-            "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading) 
+            "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 chunk.website_id,
@@ -445,8 +457,8 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, website_id, url, text, summary, context, embedding, position, heading 
-             FROM chunks 
+                "SELECT id, website_id, url, text, summary, context, embedding, position, heading
+             FROM chunks
              WHERE website_id = ?",
                 params![website_id],
             )

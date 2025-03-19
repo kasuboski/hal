@@ -9,7 +9,7 @@ mod error;
 mod spider_integration;
 
 pub use config::CrawlerConfig;
-pub use content_extraction::{clean_html, extract_metadata};
+pub use content_extraction::extract_metadata;
 pub use error::CrawlError;
 pub use spider_integration::crawl_website;
 
@@ -50,44 +50,6 @@ pub struct PageMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crawler::content_extraction::clean_html;
-
-    #[test]
-    fn test_clean_html() {
-        let html = r#"
-        <html>
-            <head>
-                <title>Test Page</title>
-            </head>
-            <body>
-                <header>Header content</header>
-                <nav>Navigation</nav>
-                <main>
-                    <h1>Main Content</h1>
-                    <p>This is the main content.</p>
-                </main>
-                <footer>Footer content</footer>
-            </body>
-        </html>
-        "#;
-
-        // Test with exclude selectors
-        let exclude_selectors = vec![
-            "header".to_string(),
-            "nav".to_string(),
-            "footer".to_string(),
-        ];
-        let result = clean_html(html, &[], &exclude_selectors).unwrap();
-
-        // The result should not contain header, nav, or footer
-        assert!(!result.contains("Header content"));
-        assert!(!result.contains("Navigation"));
-        assert!(!result.contains("Footer content"));
-
-        // The result should contain the main content
-        assert!(result.contains("Main Content"));
-        assert!(result.contains("This is the main content."));
-    }
 
     #[test]
     fn test_page_metadata() {

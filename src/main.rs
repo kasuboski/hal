@@ -10,10 +10,10 @@ use rig::{
     embeddings::EmbeddingModel,
     providers::gemini,
 };
-use telemetry::OtelGuard;
-use tracing::instrument;
 use std::path::PathBuf;
+use telemetry::OtelGuard;
 use tokio::sync::mpsc;
+use tracing::instrument;
 
 #[derive(Parser)]
 #[command(author, version, about = "A Rust client for Google's Gemini AI API", long_about = None)]
@@ -61,7 +61,7 @@ struct CrawlArgs {
     depth: u32,
 
     /// Rate limit in milliseconds
-    #[arg(short, long, default_value = "1000")]
+    #[arg(short, long, default_value = "500")]
     rate: u64,
 
     /// Save crawled content to file
@@ -79,6 +79,10 @@ struct CrawlArgs {
     /// Maximum number of pages to crawl
     #[arg(short = 'p', long, default_value = "100")]
     max_pages: u32,
+
+    /// Index a single page
+    #[arg(short, long)]
+    single: bool,
 }
 
 #[derive(Args, Debug)]
@@ -180,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut _otel: Option<OtelGuard> = None;
     if !matches!(cli.command, Some(Commands::Chat(_))) {
-        _otel = Some(crate::telemetry::init_tracing_subscriber()); 
+        _otel = Some(crate::telemetry::init_tracing_subscriber());
     }
 
     // Execute the appropriate command
@@ -224,10 +228,17 @@ async fn main() -> anyhow::Result<()> {
 async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
     println!("Crawling {}...", args.url);
 
+    // Set max_depth and max_pages based on the single argument
+    let (depth, max_pages) = if args.single {
+        (0, 1) // Set to 0 and 1 if single is true
+    } else {
+        (args.depth, args.max_pages) // Use provided values otherwise
+    };
+
     // Create crawler configuration
     let config = hal::crawler::CrawlerConfig::builder()
-        .max_depth(args.depth)
-        .max_pages(args.max_pages)
+        .max_depth(depth)
+        .max_pages(max_pages)
         .rate_limit_ms(args.rate)
         .respect_robots_txt(true)
         .user_agent("hal-rag/0.1".to_string())
@@ -266,7 +277,7 @@ async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
     let client = hal::model::Client::new_gemini(gemini);
 
     // Create database connection
-    let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
+    let db = hal::index::Database::new_local_libsql().await?;
 
     // Set max_depth and max_pages based on the single argument
     let (max_depth, max_pages) = if args.single {
@@ -282,7 +293,7 @@ async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
         let config = hal::crawler::CrawlerConfig::builder()
             .max_depth(max_depth)
             .max_pages(max_pages)
-            .rate_limit_ms(1000)
+            .rate_limit_ms(500)
             .respect_robots_txt(true)
             .user_agent("hal-rag/0.1".to_string())
             .exclude_selectors(vec![
@@ -378,7 +389,7 @@ async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
 #[instrument]
 async fn search_command(args: SearchArgs) -> anyhow::Result<()> {
     // Create database connection
-    let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
+    let db = hal::index::Database::new_local_libsql().await?;
 
     println!("Searching for: {}", args.query);
 
@@ -508,7 +519,7 @@ where
 #[instrument]
 async fn list_command(args: ListArgs) -> anyhow::Result<()> {
     // Create database connection
-    let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
+    let db = hal::index::Database::new_local_libsql().await?;
 
     // List websites
     let websites = db.list_websites().await?;
@@ -554,7 +565,7 @@ async fn list_command(args: ListArgs) -> anyhow::Result<()> {
 #[instrument]
 async fn reembed_command(args: ReembedArgs) -> anyhow::Result<()> {
     // Create database connection
-    let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
+    let db = hal::index::Database::new_local_libsql().await?;
 
     println!("Reembedding all chunks in the index with new embeddings...");
 
@@ -661,7 +672,7 @@ async fn count_chunks_to_reembed(
 
     let count: i64 = match row.get(0) {
         Ok(count) => count,
-        Err(e) => return Err(anyhow!("Failed to get count from row: {}", e).into()),
+        Err(e) => return Err(anyhow!("Failed to get count from row: {}", e)),
     };
 
     Ok(count as usize)

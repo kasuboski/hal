@@ -14,22 +14,16 @@ termcolor = "1.4.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0"
-async-trait = "0.1"
 url = "2.3"
-base64 = "0.21"
 futures = "0.3"
-uuid = { version = "1.15.1", features = ["v4", "serde"] }
 pulldown-cmark = "0.13.0"
 ratatui = "0.29.0"
 crossterm = { version = "0.28.0", features = ["event-stream"] }
 unicode-width = "0.1.11"
 clap = { version = "4.5.3", features = ["derive"] }
-rand = "0.8.5"
-# RAG feature dependencies
-spider = "1.0.0"
+spider = "2.34.2"
 scraper = "0.18.1"
 libsql = "0.6.0"
-html2md = "0.2.14"
 tokio-stream = "0.1.14"
 chrono = { version = "0.4.31", features = ["serde"] }
 semver = "1.0.20"
@@ -44,6 +38,7 @@ opentelemetry-stdout = "0.28.0"
 anyhow = "1.0.97"
 opentelemetry-otlp = "0.28.0"
 opentelemetry-appender-tracing = "0.28.1"
+spider_utils = { version = "2.34.2", features = ["transformations"] }
 
 [dev-dependencies]
 mockito = "1.0"

@@ -33,7 +33,13 @@ impl<M: EmbeddingModel> EmbeddingModel for RateLimitedEmbeddingModel<M> {
         &self,
         texts: impl IntoIterator<Item = String> + Send,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
-        self.limiter.until_ready().instrument(debug_span!("limiter")).await;
-        self.model.embed_texts(texts).instrument(info_span!("embed_texts")).await
+        self.limiter
+            .until_ready()
+            .instrument(debug_span!("limiter"))
+            .await;
+        self.model
+            .embed_texts(texts)
+            .instrument(info_span!("embed_texts"))
+            .await
     }
 }
