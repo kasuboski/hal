@@ -371,8 +371,8 @@ impl Database {
 
             // Insert the chunk with the embedding as a binary blob
             tx.execute(
-                "INSERT INTO chunks (website_id, url, text, summary, context, embedding, position, heading)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO chunks (website_id, url, text, context, embedding, position, heading)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 params![
                     indexed_chunk.website_id,
                     indexed_chunk.url,
@@ -382,7 +382,9 @@ impl Database {
                     indexed_chunk.position,
                     indexed_chunk.heading,
                 ],
-            ).await.map_err(|e| DbError::Query(format!("Failed to add chunk: {}", e)))?;
+            )
+            .await
+            .map_err(|e| DbError::Query(format!("Failed to add chunk: {}", e)))?;
         }
 
         // Commit the transaction
