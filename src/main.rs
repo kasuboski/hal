@@ -4,12 +4,7 @@ mod tui;
 use anyhow::anyhow;
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
-use rig::{
-    agent::AgentBuilder,
-    completion::{CompletionModel, Prompt},
-    embeddings::EmbeddingModel,
-    providers::gemini,
-};
+use rig::providers::gemini;
 use std::path::PathBuf;
 use telemetry::OtelGuard;
 use tokio::sync::mpsc;
@@ -388,6 +383,8 @@ async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
 
 #[instrument]
 async fn search_command(args: SearchArgs) -> anyhow::Result<()> {
+    use hal::search::{generate_answer_with_rag, prepare_rag_context};
+
     // Create database connection
     let db = hal::index::Database::new_local_libsql().await?;
 
@@ -465,56 +462,6 @@ async fn search_command(args: SearchArgs) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-/// Prepare context from search results for RAG
-fn prepare_rag_context(results: &[hal::search::SearchResult]) -> String {
-    let mut context = String::new();
-
-    for (i, result) in results.iter().enumerate() {
-        context.push_str(&format!("Source {}:\n", i + 1));
-        context.push_str(&format!("URL: {}\n", result.url));
-        context.push_str(&format!("Context: {}\n", result.context));
-        context.push_str(&format!("Content: {}\n\n", result.text));
-    }
-
-    context
-}
-
-/// Generate an answer using RAG
-#[instrument(skip(client))]
-async fn generate_answer_with_rag<C, E>(
-    client: &hal::model::Client<C, E>,
-    query: &str,
-    context: &str,
-    _model: &str,
-) -> anyhow::Result<String>
-where
-    C: CompletionModel,
-    E: EmbeddingModel,
-{
-    use tracing::{debug, trace};
-    debug!("Generating answer for query of length {}", query.len());
-
-    let completion = client.completion().clone();
-    let agent = AgentBuilder::new(completion)
-        .preamble("You are a helpful assistant that answers questions based on the provided context. \
-        Use only the information from the context to answer the question. \
-        If the context doesn't contain enough information to answer the question fully, \
-        acknowledge the limitations and provide the best answer possible with the available information. \
-        Be concise and accurate.\n")
-        .build();
-
-    // Create user prompt with context and query
-    let user_prompt = format!("Context:\n{}\n\nQuestion: {}\n\nAnswer:", context, query);
-
-    let answer = agent
-        .prompt(user_prompt)
-        .await
-        .map_err(|e| anyhow!("Failed to generate answer: {}", e))?;
-
-    trace!("Generated answer of length {}", answer.len());
-    Ok(answer)
 }
 
 #[instrument]

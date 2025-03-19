@@ -3,10 +3,14 @@
 use super::error::SearchError;
 use crate::index::Database;
 use crate::model::{Client, EmbeddingConversion};
-use rig::completion::CompletionModel;
-use rig::embeddings::EmbeddingModel;
+use rig::{
+    agent::AgentBuilder,
+    completion::{CompletionModel, Prompt},
+    embeddings::EmbeddingModel,
+};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
+use tracing::{debug, trace};
 
 /// Options for search queries
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +107,7 @@ async fn vector_search(
 ) -> Result<Vec<SearchResult>, SearchError> {
     // Build SQL query using vector_top_k for proper vector similarity search
     let mut sql = String::from(
-        "SELECT 
+        "SELECT
             c.id, c.text, c.context, c.url,
             w.url as website_url, w.domain as website_domain
         FROM vector_top_k('chunks_idx', ?, ?) as v
@@ -171,4 +175,53 @@ async fn process_results(mut rows: libsql::Rows) -> Result<Vec<SearchResult>, Se
     }
 
     Ok(results)
+}
+
+/// Generate an answer using RAG
+#[instrument(skip(client))]
+pub async fn generate_answer_with_rag<C, E>(
+    client: &crate::model::Client<C, E>,
+    query: &str,
+    context: &str,
+    _model: &str,
+) -> anyhow::Result<String>
+where
+    C: CompletionModel,
+    E: EmbeddingModel,
+{
+    debug!("Generating answer for query of length {}", query.len());
+
+    let completion = client.completion().clone();
+    let agent = AgentBuilder::new(completion)
+        .preamble("You are a helpful assistant that answers questions based on the provided context. \
+        Use only the information from the context to answer the question. \
+        If the context doesn't contain enough information to answer the question fully, \
+        acknowledge the limitations and provide the best answer possible with the available information. \
+        Be concise and accurate.\n")
+        .build();
+
+    // Create user prompt with context and query
+    let user_prompt = format!("Context:\n{}\n\nQuestion: {}\n\nAnswer:", context, query);
+
+    let answer = agent
+        .prompt(user_prompt)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to generate answer: {}", e))?;
+
+    trace!("Generated answer of length {}", answer.len());
+    Ok(answer)
+}
+
+/// Prepare context from search results for RAG
+pub fn prepare_rag_context(results: &[SearchResult]) -> String {
+    let mut context = String::new();
+
+    for (i, result) in results.iter().enumerate() {
+        context.push_str(&format!("Source {}:\n", i + 1));
+        context.push_str(&format!("URL: {}\n", result.url));
+        context.push_str(&format!("Context: {}\n", result.context));
+        context.push_str(&format!("Content: {}\n\n", result.text));
+    }
+
+    context
 }
