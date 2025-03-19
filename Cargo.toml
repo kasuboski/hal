@@ -37,6 +37,13 @@ indicatif = "0.17.8"
 rig-core = "0.9.1"
 governor = "0.8.1"
 tracing-appender = "0.2.3"
+opentelemetry = "0.28.0"
+opentelemetry_sdk = "0.28.0"
+tracing-opentelemetry = "0.29.0"
+opentelemetry-stdout = "0.28.0"
+anyhow = "1.0.97"
+opentelemetry-otlp = "0.28.0"
+opentelemetry-appender-tracing = "0.28.1"
 
 [dev-dependencies]
 mockito = "1.0"

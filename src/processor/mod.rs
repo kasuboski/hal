@@ -22,7 +22,7 @@ use rig::{
 };
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 /// Represents a processed chunk with its embedding, summary, and context
 #[derive(Debug, Clone)]
@@ -68,6 +68,7 @@ pub struct ChunkMetadata {
 /// # Returns
 ///
 /// A vector of floats representing the embedding
+#[instrument(skip(client))]
 pub async fn generate_combined_embedding<C, E>(
     client: &Client<C, E>,
     text: &str,
@@ -105,6 +106,7 @@ where
 /// # Returns
 ///
 /// A vector of processed chunks
+#[instrument(skip(client))]
 pub async fn process_content<C, E>(
     client: &Client<C, E>,
     page: CrawledPage,

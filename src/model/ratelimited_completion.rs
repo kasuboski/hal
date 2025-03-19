@@ -5,6 +5,7 @@ use rig::{
     agent::AgentBuilder,
     completion::{self, CompletionError, CompletionModel, CompletionRequest, CompletionResponse},
 };
+use tracing::{debug_span, info_span, Instrument};
 
 use super::RateLimitResponse;
 
@@ -37,8 +38,8 @@ impl<M: CompletionModel> CompletionModel for RateLimitedCompletionModel<M> {
         &self,
         completion_request: CompletionRequest,
     ) -> Result<completion::CompletionResponse<Self::Response>, CompletionError> {
-        self.limiter.until_ready().await;
-        let response = self.model.completion(completion_request).await;
+        self.limiter.until_ready().instrument(debug_span!("limiter")).await;
+        let response = self.model.completion(completion_request).instrument(info_span!("completion")).await;
         response.map(|response| {
             let rate_limit = RateLimitResponse {
                 response: response.raw_response,

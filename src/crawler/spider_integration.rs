@@ -6,7 +6,7 @@ use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, instrument, warn};
 use url::Url;
 
 use crate::crawler::content_extraction::{clean_html, extract_metadata, html_to_markdown};
@@ -44,6 +44,7 @@ fn normalize_url(url: &Url) -> String {
 /// # Returns
 ///
 /// A vector of crawled pages
+#[instrument]
 pub async fn crawl_website(
     url: &str,
     config: CrawlerConfig,
@@ -120,88 +121,92 @@ pub async fn crawl_website(
             }
         };
 
-        // Clean the HTML
-        let clean_html =
-            match clean_html(&html, &config.content_selectors, &config.exclude_selectors) {
-                Ok(clean_html) => clean_html,
+        {
+            let process = info_span!("process_url", url = %url);
+            // Clean the HTML
+            let clean_html =
+                match clean_html(&html, &config.content_selectors, &config.exclude_selectors) {
+                    Ok(clean_html) => clean_html,
+                    Err(e) => {
+                        warn!("Failed to clean HTML from {}: {}", url, e);
+                        drop(permit);
+                        continue;
+                    }
+                };
+
+            // Convert to Markdown
+            let markdown = html_to_markdown(&clean_html);
+
+            // Extract metadata
+            let metadata = match extract_metadata(url.as_ref(), &html) {
+                Ok(metadata) => metadata,
                 Err(e) => {
-                    warn!("Failed to clean HTML from {}: {}", url, e);
+                    warn!("Failed to extract metadata from {}: {}", url, e);
                     drop(permit);
                     continue;
                 }
             };
 
-        // Convert to Markdown
-        let markdown = html_to_markdown(&clean_html);
-
-        // Extract metadata
-        let metadata = match extract_metadata(url.as_ref(), &html) {
-            Ok(metadata) => metadata,
-            Err(e) => {
-                warn!("Failed to extract metadata from {}: {}", url, e);
-                drop(permit);
-                continue;
-            }
-        };
-
-        // Create a crawled page
-        let page = CrawledPage {
-            url: url.to_string(),
-            content: markdown,
-            metadata,
-        };
-
-        // Add the page to the list
-        pages.push(page);
-
-        // Extract links from the page
-        if depth < config.max_depth {
-            let document = Html::parse_document(&html);
-            let selector = match Selector::parse("a[href]") {
-                Ok(selector) => selector,
-                Err(e) => {
-                    warn!("Failed to parse selector: {}", e);
-                    drop(permit);
-                    continue;
-                }
+            // Create a crawled page
+            let page = CrawledPage {
+                url: url.to_string(),
+                content: markdown,
+                metadata,
             };
 
-            for element in document.select(&selector) {
-                if let Some(href) = element.value().attr("href") {
-                    // Parse the URL
-                    let next_url = match url.join(href) {
-                        Ok(url) => url,
-                        Err(e) => {
-                            debug!("Failed to parse URL {}: {}", href, e);
+            // Add the page to the list
+            pages.push(page);
+
+            // Extract links from the page
+            if depth < config.max_depth {
+                let document = Html::parse_document(&html);
+                let selector = match Selector::parse("a[href]") {
+                    Ok(selector) => selector,
+                    Err(e) => {
+                        warn!("Failed to parse selector: {}", e);
+                        drop(permit);
+                        continue;
+                    }
+                };
+
+                for element in document.select(&selector) {
+                    if let Some(href) = element.value().attr("href") {
+                        // Parse the URL
+                        let next_url = match url.join(href) {
+                            Ok(url) => url,
+                            Err(e) => {
+                                debug!("Failed to parse URL {}: {}", href, e);
+                                continue;
+                            }
+                        };
+
+                        // Check if the URL is from the same domain
+                        if next_url.host_str() != base_url.host_str() {
+                            debug!("Skipping external URL: {}", next_url);
                             continue;
                         }
-                    };
 
-                    // Check if the URL is from the same domain
-                    if next_url.host_str() != base_url.host_str() {
-                        debug!("Skipping external URL: {}", next_url);
-                        continue;
+                        // Normalize the URL by removing query parameters and fragments
+                        let normalized_url = normalize_url(&next_url);
+
+                        // Check if we've already visited this URL
+                        if visited.contains(&normalized_url) {
+                            debug!("Skipping already visited URL: {}", next_url);
+                            continue;
+                        }
+
+                        // Add the URL to the queue
+                        debug!("Adding URL to queue: {}", next_url);
+                        queue.push_back((next_url.clone(), depth + 1));
+                        visited.insert(normalized_url);
                     }
-
-                    // Normalize the URL by removing query parameters and fragments
-                    let normalized_url = normalize_url(&next_url);
-
-                    // Check if we've already visited this URL
-                    if visited.contains(&normalized_url) {
-                        debug!("Skipping already visited URL: {}", next_url);
-                        continue;
-                    }
-
-                    // Add the URL to the queue
-                    debug!("Adding URL to queue: {}", next_url);
-                    queue.push_back((next_url.clone(), depth + 1));
-                    visited.insert(normalized_url);
                 }
             }
-        }
 
-        // Release the permit
-        drop(permit);
+            // Release the permit
+            drop(permit);
+            drop(process);
+        }
 
         // Add a delay to avoid overwhelming the server
         sleep(Duration::from_millis(config.rate_limit_ms)).await;

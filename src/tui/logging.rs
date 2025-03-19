@@ -2,7 +2,7 @@ use std::env;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub fn setup_logging() -> Result<(), Box<dyn std::error::Error>> {
+pub fn setup_logging() -> anyhow::Result<()> {
     // Create .hal directory in the working directory if it doesn't exist
     let work_dir = env::current_dir()?;
     let log_dir = work_dir.join(".hal");

@@ -6,6 +6,7 @@ use crate::model::{Client, EmbeddingConversion};
 use rig::completion::CompletionModel;
 use rig::embeddings::EmbeddingModel;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 /// Options for search queries
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +72,7 @@ where
 }
 
 /// Search the index with the given query, options, and client
+#[instrument(skip(db, client))]
 pub async fn search_index_with_client<C, E>(
     db: &Database,
     client: &Client<C, E>,
@@ -96,6 +98,7 @@ where
 }
 
 /// Search using the vector_top_k function
+#[instrument(skip(db))]
 async fn vector_search(
     db: &Database,
     embedding_blob: &[u8],

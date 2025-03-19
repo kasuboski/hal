@@ -1,5 +1,7 @@
+mod telemetry;
 mod tui;
 
+use anyhow::anyhow;
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 use rig::{
@@ -8,6 +10,8 @@ use rig::{
     embeddings::EmbeddingModel,
     providers::gemini,
 };
+use telemetry::OtelGuard;
+use tracing::instrument;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
@@ -18,7 +22,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands {
     /// Start an interactive chat session with Gemini
     Chat(ChatArgs),
@@ -39,14 +43,14 @@ enum Commands {
     Reembed(ReembedArgs),
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct ChatArgs {
     /// Gemini model to use (default: gemini-2.0-flash)
     #[arg(short, long, default_value = "gemini-2.0-flash")]
     model: String,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct CrawlArgs {
     /// URL to crawl
     #[arg(required = true)]
@@ -77,7 +81,7 @@ struct CrawlArgs {
     max_pages: u32,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct IndexArgs {
     /// Source to index (URL or file)
     #[arg(required = true)]
@@ -112,7 +116,7 @@ struct IndexArgs {
     single: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct SearchArgs {
     /// Search query
     #[arg(required = true)]
@@ -123,7 +127,7 @@ struct SearchArgs {
     source: Option<String>,
 
     /// Limit results
-    #[arg(short, long, default_value = "5")]
+    #[arg(short, long, default_value = "15")]
     limit: usize,
 
     /// Output format (text|json)
@@ -143,18 +147,18 @@ struct SearchArgs {
     model: String,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct ListArgs {
     /// Show detailed information
     #[arg(short, long)]
     details: bool,
 
     /// Database path
-    #[arg(short, long, default_value = "index.db")]
+    #[arg(long, default_value = "index.db")]
     database: PathBuf,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 struct ReembedArgs {
     /// Database path
     #[arg(short, long, default_value = "index.db")]
@@ -170,9 +174,14 @@ struct ReembedArgs {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
+
+    let mut _otel: Option<OtelGuard> = None;
+    if !matches!(cli.command, Some(Commands::Chat(_))) {
+        _otel = Some(crate::telemetry::init_tracing_subscriber()); 
+    }
 
     // Execute the appropriate command
     match cli.command {
@@ -188,29 +197,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tui::run(api_key).await?;
         }
         Some(Commands::Crawl(args)) => {
-            // Initialize tracing
-            tracing_subscriber::fmt::init();
-
             crawl_command(args).await?;
         }
         Some(Commands::Index(args)) => {
-            // Initialize tracing
-            tracing_subscriber::fmt::init();
             index_command(args).await?;
         }
         Some(Commands::Search(args)) => {
-            // Initialize tracing
-            tracing_subscriber::fmt::init();
             search_command(args).await?;
         }
         Some(Commands::List(args)) => {
-            // Initialize tracing
-            tracing_subscriber::fmt::init();
             list_command(args).await?;
         }
         Some(Commands::Reembed(args)) => {
-            // Initialize tracing
-            tracing_subscriber::fmt::init();
             reembed_command(args).await?;
         }
         None => {
@@ -222,7 +220,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn crawl_command(args: CrawlArgs) -> Result<(), Box<dyn std::error::Error>> {
+#[instrument]
+async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
     println!("Crawling {}...", args.url);
 
     // Create crawler configuration
@@ -256,7 +255,8 @@ async fn crawl_command(args: CrawlArgs) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-async fn index_command(args: IndexArgs) -> Result<(), Box<dyn std::error::Error>> {
+#[instrument]
+async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
     // Get API key from environment variable
     let api_key =
         std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
@@ -375,7 +375,8 @@ async fn index_command(args: IndexArgs) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-async fn search_command(args: SearchArgs) -> Result<(), Box<dyn std::error::Error>> {
+#[instrument]
+async fn search_command(args: SearchArgs) -> anyhow::Result<()> {
     // Create database connection
     let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
 
@@ -469,12 +470,13 @@ fn prepare_rag_context(results: &[hal::search::SearchResult]) -> String {
 }
 
 /// Generate an answer using RAG
+#[instrument(skip(client))]
 async fn generate_answer_with_rag<C, E>(
     client: &hal::model::Client<C, E>,
     query: &str,
     context: &str,
     _model: &str,
-) -> Result<String, Box<dyn std::error::Error>>
+) -> anyhow::Result<String>
 where
     C: CompletionModel,
     E: EmbeddingModel,
@@ -497,13 +499,14 @@ where
     let answer = agent
         .prompt(user_prompt)
         .await
-        .map_err(|e| format!("Failed to generate answer: {}", e))?;
+        .map_err(|e| anyhow!("Failed to generate answer: {}", e))?;
 
     trace!("Generated answer of length {}", answer.len());
     Ok(answer)
 }
 
-async fn list_command(args: ListArgs) -> Result<(), Box<dyn std::error::Error>> {
+#[instrument]
+async fn list_command(args: ListArgs) -> anyhow::Result<()> {
     // Create database connection
     let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
 
@@ -548,7 +551,8 @@ async fn list_command(args: ListArgs) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-async fn reembed_command(args: ReembedArgs) -> Result<(), Box<dyn std::error::Error>> {
+#[instrument]
+async fn reembed_command(args: ReembedArgs) -> anyhow::Result<()> {
     // Create database connection
     let db = hal::index::Database::new_from_path(&args.database.to_string_lossy()).await?;
 
@@ -633,7 +637,7 @@ async fn reembed_command(args: ReembedArgs) -> Result<(), Box<dyn std::error::Er
 async fn count_chunks_to_reembed(
     db: &hal::index::Database,
     source_filter: Option<String>,
-) -> Result<usize, Box<dyn std::error::Error>> {
+) -> anyhow::Result<usize> {
     // Build the SQL query
     let mut sql =
         String::from("SELECT COUNT(*) FROM chunks c JOIN websites w ON c.website_id = w.id");
@@ -652,12 +656,12 @@ async fn count_chunks_to_reembed(
     let row = match rows.next().await {
         Ok(Some(row)) => row,
         Ok(None) => return Ok(0),
-        Err(e) => return Err(format!("Failed to get count: {}", e).into()),
+        Err(e) => return Err(anyhow!("Failed to get count: {}", e)),
     };
 
     let count: i64 = match row.get(0) {
         Ok(count) => count,
-        Err(e) => return Err(format!("Failed to get count from row: {}", e).into()),
+        Err(e) => return Err(anyhow!("Failed to get count from row: {}", e).into()),
     };
 
     Ok(count as usize)

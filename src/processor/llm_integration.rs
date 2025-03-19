@@ -5,7 +5,7 @@ use crate::processor::error::ProcessError;
 use rig::agent::AgentBuilder;
 use rig::completion::{CompletionModel, Prompt};
 use rig::embeddings::EmbeddingModel;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 /// Generate a summary for a text
 ///
@@ -18,6 +18,7 @@ use tracing::{debug, trace};
 /// # Returns
 ///
 /// A summary of the text
+#[instrument(skip(client))]
 pub async fn generate_summary<C, E>(
     client: &Client<C, E>,
     text: &str,
@@ -56,6 +57,7 @@ where
 /// # Returns
 ///
 /// A context string for the text
+#[instrument(skip(client))]
 pub async fn generate_context_string<C, E>(
     client: &Client<C, E>,
     text: &str,

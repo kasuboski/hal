@@ -32,7 +32,7 @@ impl Default for CrawlerConfig {
         Self {
             max_depth: 2,
             max_pages: 100,
-            rate_limit_ms: 1000,
+            rate_limit_ms: 500,
             respect_robots_txt: true,
             user_agent: format!("hal-crawler/{}", env!("CARGO_PKG_VERSION")),
             content_selectors: Vec::new(),

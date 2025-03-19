@@ -7,7 +7,7 @@ use crate::model::embedding::EmbeddingConversion;
 use libsql::{params, Connection, Row, Rows};
 use rig::embeddings::Embedding;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::debug;
+use tracing::{debug, instrument};
 
 /// Database manager for the index
 #[derive(Clone)]
@@ -17,6 +17,7 @@ pub struct Database {
 
 impl Database {
     /// Create a new database manager
+    #[instrument(skip(conn))]
     pub async fn new(conn: Connection) -> Result<Self, DbError> {
         // Initialize schema
         schema::initialize_schema(&conn).await?;
@@ -145,6 +146,7 @@ impl Database {
     }
 
     /// Get all websites
+    #[instrument(skip(self))]
     pub async fn get_all_websites(&self) -> Result<Vec<Website>, DbError> {
         let mut rows = self
             .conn
@@ -165,6 +167,7 @@ impl Database {
     }
 
     /// List all websites (alias for get_all_websites)
+    #[instrument(skip(self))]
     pub async fn list_websites(&self) -> Result<Vec<Website>, DbError> {
         self.get_all_websites().await
     }
