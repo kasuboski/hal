@@ -17,6 +17,9 @@ pub struct CrawlerConfig {
     /// Whether to respect robots.txt
     pub respect_robots_txt: bool,
 
+    /// Whether to only crawl links underneath the initial URL
+    pub child_links_only: bool,
+
     /// User agent to use for requests
     pub user_agent: String,
 
@@ -34,6 +37,7 @@ impl Default for CrawlerConfig {
             max_pages: 100,
             rate_limit_ms: 500,
             respect_robots_txt: true,
+            child_links_only: true,
             user_agent: format!("hal-crawler/{}", env!("CARGO_PKG_VERSION")),
             content_selectors: Vec::new(),
             exclude_selectors: vec![

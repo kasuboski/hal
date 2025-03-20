@@ -2,7 +2,7 @@
 name = "hal"
 version = "0.1.0"
 edition = "2021"
-description = "A Rust client for Google's Gemini AI API"
+description = "A Rust project for ai funz"
 license = "MIT"
 
 [dependencies]
@@ -21,7 +21,7 @@ ratatui = "0.29.0"
 crossterm = { version = "0.28.0", features = ["event-stream"] }
 unicode-width = "0.1.11"
 clap = { version = "4.5.3", features = ["derive"] }
-spider = "2.34.2"
+spider = { version = "2.34.2", features = ["regex"] }
 scraper = "0.18.1"
 libsql = "0.6.0"
 tokio-stream = "0.1.14"
@@ -39,6 +39,7 @@ anyhow = "1.0.97"
 opentelemetry-otlp = "0.28.0"
 opentelemetry-appender-tracing = "0.28.1"
 spider_utils = { version = "2.34.2", features = ["transformations"] }
+regex = "1.11.1"
 
 [dev-dependencies]
 mockito = "1.0"

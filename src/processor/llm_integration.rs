@@ -18,7 +18,7 @@ use tracing::{debug, instrument, trace};
 /// # Returns
 ///
 /// A summary of the text
-#[instrument(skip(client))]
+#[instrument(skip(client, text))]
 pub async fn generate_summary<C, E>(
     client: &Client<C, E>,
     text: &str,
@@ -57,7 +57,7 @@ where
 /// # Returns
 ///
 /// A context string for the text
-#[instrument(skip(client))]
+#[instrument(skip(client, summary))]
 pub async fn generate_context_string<C, E>(
     client: &Client<C, E>,
     text: &str,

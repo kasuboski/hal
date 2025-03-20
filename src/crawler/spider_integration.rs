@@ -1,11 +1,14 @@
 //! Integration with spider library for web crawling
 
+use regex::Regex;
+use spider::compact_str::CompactString;
 use spider::tokio;
 use spider::website::Website;
 use spider_utils::spider_transformations::transformation::content::{
     transform_content, ReturnFormat, TransformConfig,
 };
 use tracing::{debug, error, info, info_span, instrument};
+use url::Url;
 
 use crate::crawler::content_extraction::extract_metadata;
 use crate::crawler::error::CrawlError;
@@ -29,6 +32,24 @@ pub async fn crawl_website(
     info!("Starting crawl for {}", url);
     debug!("Crawler config: {:?}", config);
 
+    let base_url = Url::parse(url)?;
+    let base_path = regex::escape(base_url.path());
+    let domain = base_url
+        .host_str()
+        .ok_or_else(|| url::ParseError::EmptyHost)?;
+    let domain = regex::escape(domain);
+    let scheme = base_url.scheme();
+
+    let allowed: Option<Vec<CompactString>> = if config.child_links_only {
+        let regex_pattern_str = format!("^{scheme}://{domain}{base_path}.*");
+        let _regex_pattern = Regex::new(&regex_pattern_str)
+            .map_err(|e| CrawlError::Other(format!("Failed to create regex pattern: {}", e)))?;
+        debug!("Using regex pattern: {}", regex_pattern_str);
+        Some(vec![CompactString::from(&regex_pattern_str)])
+    } else {
+        None
+    };
+
     let mut website = Website::new(url);
     website
         .configuration
@@ -36,7 +57,8 @@ pub async fn crawl_website(
         .with_user_agent(Some(&config.user_agent))
         .with_delay(config.rate_limit_ms)
         .with_depth(config.max_depth.try_into().unwrap_or(0))
-        .with_limit(config.max_pages);
+        .with_limit(config.max_pages)
+        .with_whitelist_url(allowed);
 
     let mut rx = website
         .subscribe(10)

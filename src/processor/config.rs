@@ -3,10 +3,10 @@
 /// Configuration for chunking text
 #[derive(Debug, Clone)]
 pub struct ChunkOptions {
-    /// Target size of each chunk in characters
+    /// Target size of each chunk in words
     pub target_chunk_size: usize,
 
-    /// Size of overlap between chunks in characters
+    /// Size of overlap between chunks in words
     pub overlap_size: usize,
 }
 
