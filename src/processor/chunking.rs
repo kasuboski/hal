@@ -3,10 +3,11 @@
 use crate::processor::error::ProcessError;
 use crate::processor::ChunkOptions;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
-use tracing::{debug, trace};
+use serde::Serialize;
+use tracing::{debug, instrument};
 
 /// A chunk of text with metadata
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TextChunk {
     /// The text of the chunk
     pub text: String,
@@ -19,6 +20,8 @@ pub struct TextChunk {
 }
 
 /// Chunk Markdown text into smaller pieces
+/// The chunker tries to preserve paragraph boundaries and code block boundaries.
+/// It builds a chunk out of a list of words. It tries it track important elements by their position in the list of words.
 ///
 /// # Arguments
 ///
@@ -28,6 +31,7 @@ pub struct TextChunk {
 /// # Returns
 ///
 /// A vector of text chunks
+#[instrument(skip(markdown))]
 pub fn chunk_markdown(
     markdown: &str,
     options: &ChunkOptions,
@@ -41,7 +45,7 @@ pub fn chunk_markdown(
     let mut current_heading = None;
 
     // Track the current chunk
-    let mut current_chunk = String::new();
+    let mut current_chunk: Vec<String> = Vec::new();
 
     // Track the chunks
     let mut chunks = Vec::new();
@@ -62,8 +66,11 @@ pub fn chunk_markdown(
     for event in parser {
         match &event {
             Event::Text(text) => {
+                let words = text
+                    .split_inclusive(|s| s == ' ' || s == '\n')
+                    .map(String::from);
                 // Add the text to the current chunk
-                current_chunk.push_str(text);
+                current_chunk.extend(words);
 
                 // Check if the chunk is large enough
                 if current_chunk.len() >= options.target_chunk_size {
@@ -76,9 +83,11 @@ pub fn chunk_markdown(
                         in_code_block,
                     );
 
-                    // Add the chunk to the chunks
+                    let split_text: String =
+                        current_chunk.iter().take(split_point).cloned().collect();
+
                     chunks.push(TextChunk {
-                        text: current_chunk[..split_point].to_string(),
+                        text: split_text.trim().to_string(),
                         position,
                         heading: current_heading.clone(),
                     });
@@ -86,7 +95,7 @@ pub fn chunk_markdown(
 
                     // Start a new chunk with overlap
                     let overlap_start = split_point.saturating_sub(options.overlap_size);
-                    current_chunk = current_chunk[overlap_start..].to_string();
+                    current_chunk = current_chunk.into_iter().skip(overlap_start).collect();
 
                     // Adjust the paragraph and code block boundaries
                     adjust_boundaries(&mut paragraph_breaks, overlap_start, split_point);
@@ -102,16 +111,23 @@ pub fn chunk_markdown(
             }
             Event::Start(tag) => {
                 // Check if this is a heading
-                if let Some(level) = get_heading_level(tag) {
-                    trace!("Found heading level {}", level);
-
+                if let Tag::Heading {
+                    level,
+                    id: _,
+                    classes: _,
+                    attrs: _,
+                } = tag
+                {
                     // Extract heading text (will be populated in the next events)
-                    if level <= 3 {
+                    if matches!(
+                        level,
+                        HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3
+                    ) {
                         // Only track headings up to level 3
                         // If we have a current chunk, add it to the chunks
-                        if !current_chunk.trim().is_empty() {
+                        if !current_chunk.is_empty() {
                             chunks.push(TextChunk {
-                                text: current_chunk.clone(),
+                                text: current_chunk.join(""),
                                 position,
                                 heading: current_heading.clone(),
                             });
@@ -130,21 +146,32 @@ pub fn chunk_markdown(
                     code_block_boundaries.push(current_chunk.len());
 
                     // Add a marker for the code block start
-                    if !current_chunk.is_empty() && !current_chunk.ends_with('\n') {
-                        current_chunk.push('\n');
+                    if !current_chunk.is_empty()
+                        && !current_chunk
+                            .last()
+                            .and_then(|c| Some(c.ends_with('\n')))
+                            .unwrap_or(false)
+                    {
+                        current_chunk.push("\n".to_string());
                     }
                 } else if let Tag::Paragraph = tag {
                     // Mark the start of a paragraph
-                    if !current_chunk.is_empty() && !current_chunk.ends_with('\n') {
-                        current_chunk.push('\n');
+                    if !current_chunk.is_empty()
+                        && !current_chunk
+                            .last()
+                            .and_then(|c| Some(c.ends_with('\n')))
+                            .unwrap_or(false)
+                    {
+                        current_chunk.push("\n".to_string());
                     }
                 } else {
-                    // Add a space to separate elements
                     if !current_chunk.is_empty()
-                        && !current_chunk.ends_with(' ')
-                        && !current_chunk.ends_with('\n')
+                        && !current_chunk
+                            .last()
+                            .and_then(|c| Some(c.ends_with(['\n', ' ']) || c.ends_with(' ')))
+                            .unwrap_or(false)
                     {
-                        current_chunk.push(' ');
+                        current_chunk.push(" ".to_string());
                     }
                 }
             }
@@ -155,65 +182,76 @@ pub fn chunk_markdown(
                     code_block_boundaries.push(current_chunk.len());
 
                     // Add a marker for the code block end
-                    if !current_chunk.is_empty() && !current_chunk.ends_with('\n') {
-                        current_chunk.push('\n');
+                    if !current_chunk.is_empty()
+                        && !current_chunk
+                            .last()
+                            .and_then(|c| Some(c.ends_with('\n')))
+                            .unwrap_or(false)
+                    {
+                        current_chunk.push("\n".to_string());
                     }
                 } else if let TagEnd::Paragraph = tag {
                     // Mark the end of a paragraph
                     paragraph_breaks.push(current_chunk.len());
 
                     // Add a newline after paragraphs
-                    if !current_chunk.ends_with('\n') {
-                        current_chunk.push('\n');
+                    if !current_chunk
+                        .last()
+                        .and_then(|c| Some(c.ends_with('\n')))
+                        .unwrap_or(false)
+                    {
+                        current_chunk.push("\n".to_string());
                     }
-                    current_chunk.push('\n');
+                    current_chunk.push("\n".to_string());
                 } else if let TagEnd::Heading(level) = tag {
-                    let level_num = match level {
-                        HeadingLevel::H1 => 1,
-                        HeadingLevel::H2 => 2,
-                        HeadingLevel::H3 => 3,
-                        HeadingLevel::H4 => 4,
-                        HeadingLevel::H5 => 5,
-                        HeadingLevel::H6 => 6,
-                    };
-
-                    if level_num <= 3 && current_heading.is_some() {
+                    if matches!(
+                        level,
+                        HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3
+                    ) && current_heading.is_some()
+                    {
                         // We've captured the heading text in previous Text events
                         // Add a newline after headings
-                        if !current_chunk.ends_with('\n') {
-                            current_chunk.push('\n');
+                        if !current_chunk
+                            .last()
+                            .and_then(|c| Some(c.ends_with('\n')))
+                            .unwrap_or(false)
+                        {
+                            current_chunk.push("\n".to_string());
                         }
                     }
                 }
             }
             Event::Code(code) => {
                 // Inline code
-                current_chunk.push('`');
-                current_chunk.push_str(code);
-                current_chunk.push('`');
+                let code = code.clone().into_string();
+                current_chunk.push("`".to_string());
+                current_chunk.push(code);
+                current_chunk.push("`".to_string());
             }
             Event::SoftBreak => {
-                current_chunk.push(' ');
+                current_chunk.push(" ".to_string());
             }
             Event::HardBreak => {
-                current_chunk.push('\n');
+                current_chunk.push("\n".to_string());
             }
             _ => {
                 // Add a space to separate elements
                 if !current_chunk.is_empty()
-                    && !current_chunk.ends_with(' ')
-                    && !current_chunk.ends_with('\n')
+                    && !current_chunk
+                        .last()
+                        .and_then(|c| Some(c.ends_with('\n') || c.ends_with(' ')))
+                        .unwrap_or(false)
                 {
-                    current_chunk.push(' ');
+                    current_chunk.push(" ".to_string());
                 }
             }
         }
     }
 
     // Add the final chunk if it's not empty
-    if !current_chunk.trim().is_empty() {
+    if !current_chunk.is_empty() {
         chunks.push(TextChunk {
-            text: current_chunk,
+            text: current_chunk.join("").trim().to_string(),
             position,
             heading: current_heading,
         });
@@ -240,19 +278,20 @@ pub fn chunk_markdown(
 ///
 /// The position to split the text at
 fn find_split_point(
-    text: &str,
+    text: &Vec<String>,
     target_size: usize,
     paragraph_breaks: &[usize],
     code_block_boundaries: &[usize],
     in_code_block: bool,
 ) -> usize {
-    let text_len = text.len();
+    let words: Vec<String> = text.iter().map(|s| s.to_string()).collect();
+    let words_len = words.len();
 
     // If we're in a code block, try to find the end of it
     if in_code_block {
         // Find the next code block boundary after the target size
         for &pos in code_block_boundaries {
-            if pos > target_size && pos < text_len {
+            if pos > target_size && pos < words_len {
                 return pos;
             }
         }
@@ -261,7 +300,7 @@ fn find_split_point(
     // Try to split at a paragraph break
     for &pos in paragraph_breaks.iter().rev() {
         // Only use paragraph breaks that are at least 30% of the target size
-        if pos > target_size * 3 / 10 && pos < text_len {
+        if pos > target_size * 3 / 10 && pos < words_len {
             return pos;
         }
     }
@@ -269,26 +308,22 @@ fn find_split_point(
     // Try to split at a code block boundary
     for &pos in code_block_boundaries.iter().rev() {
         // Only use code block boundaries that are at least 30% of the target size
-        if pos > target_size * 3 / 10 && pos < text_len {
+        if pos > target_size * 3 / 10 && pos < words_len {
             return pos;
         }
     }
 
-    // Try to split at a sentence boundary
-    let substring = &text[..std::cmp::min(text_len, target_size + 200)];
-    for (i, c) in substring.char_indices().rev() {
-        if i <= target_size && (c == '.' || c == '!' || c == '?') {
-            // Look for a space after the punctuation
-            if let Some(next_char) = substring[i..].chars().nth(1) {
-                if next_char.is_whitespace() {
-                    return i + 2; // Include the punctuation and the space
-                }
-            }
-        }
+    let sentence_pos = text
+        .iter()
+        .take(target_size + 200)
+        .rposition(|word| word.ends_with(". ") || word.ends_with("! ") || word.ends_with("? "));
+
+    if let Some(pos) = sentence_pos {
+        return pos;
     }
 
-    // If all else fails, split at the target size
-    std::cmp::min(text_len, target_size)
+    // If all else fails, split at the target word count
+    std::cmp::min(words_len, target_size)
 }
 
 /// Adjust boundary positions after removing text
@@ -312,25 +347,39 @@ fn adjust_boundaries(boundaries: &mut Vec<usize>, start: usize, end: usize) {
     }
 }
 
-/// Helper function to get the heading level from a tag
-fn get_heading_level(tag: &pulldown_cmark::Tag) -> Option<usize> {
-    match tag {
-        Tag::Heading { level, .. } => match level {
-            HeadingLevel::H1 => Some(1),
-            HeadingLevel::H2 => Some(2),
-            HeadingLevel::H3 => Some(3),
-            HeadingLevel::H4 => Some(4),
-            HeadingLevel::H5 => Some(5),
-            HeadingLevel::H6 => Some(6),
-        },
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::processor::ChunkOptions;
+
+    #[test]
+    fn test_utf8_character_chunking() {
+        let text = "Hello, 世界! This is a test with UTF-8 characters. 你好，世界！";
+        let options = ChunkOptions {
+            target_chunk_size: 20,
+            overlap_size: 5,
+        };
+
+        let chunks = chunk_markdown(text, &options).unwrap();
+
+        // Verify that chunks are created and contain valid UTF-8
+        assert!(!chunks.is_empty());
+        for chunk in &chunks {
+            // Verify each chunk contains valid UTF-8
+            assert!(chunk.text.chars().all(|c| c.len_utf8() > 0));
+
+            // Verify chunk boundaries don't split UTF-8 characters
+            String::from_utf8(chunk.text.as_bytes().to_vec()).unwrap();
+        }
+
+        // Verify that the chunks can be rejoined without losing characters
+        let total_chars = text.chars().count();
+        let chunks_chars: usize = chunks.iter().map(|c| c.text.chars().count()).sum();
+        assert!(
+            chunks_chars >= total_chars,
+            "All characters should be preserved in chunks"
+        );
+    }
 
     /// This test demonstrates how the chunk_markdown function works with different types of markdown content.
     /// It shows how the function respects code blocks, paragraphs, and headings when chunking text.
@@ -519,13 +568,13 @@ fn example_function() -> Result<(), Error> {
     for i in 0..100 {
         data.push(i);
     }
-    
+
     // Then we process the data
     let processed = data.iter()
         .map(|x| x * 2)
         .filter(|x| x % 3 == 0)
         .collect::<Vec<_>>();
-        
+
     // Finally, we return the result
     println!("Processed {} items", processed.len());
     Ok(())
@@ -552,8 +601,8 @@ The content under this heading should be associated with this heading."#;
 
         // Create chunk options with a size that will force the code block to be chunked
         let options = ChunkOptions {
-            target_chunk_size: 300, // Size that will likely split the code block
-            overlap_size: 50,       // Reasonable overlap
+            target_chunk_size: 30, // Size that will likely split the code block
+            overlap_size: 5,       // Reasonable overlap
         };
 
         // Act: Chunk the markdown

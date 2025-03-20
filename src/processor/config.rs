@@ -13,8 +13,8 @@ pub struct ChunkOptions {
 impl Default for ChunkOptions {
     fn default() -> Self {
         Self {
-            target_chunk_size: 1000,
-            overlap_size: 100,
+            target_chunk_size: 500,
+            overlap_size: 50,
         }
     }
 }

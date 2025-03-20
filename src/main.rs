@@ -3,6 +3,7 @@ mod tui;
 
 use anyhow::anyhow;
 use clap::{Args, Parser, Subcommand};
+use hal::processor::chunk_markdown;
 use indicatif::{ProgressBar, ProgressStyle};
 use rig::providers::gemini;
 use std::path::PathBuf;
@@ -87,7 +88,7 @@ struct IndexArgs {
     source: String,
 
     /// Chunk size in characters
-    #[arg(short, long, default_value = "1000")]
+    #[arg(short, long, default_value = "500")]
     chunk_size: usize,
 
     /// LLM model for summaries
@@ -250,10 +251,20 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
 
     println!("Crawled {} pages", pages.len());
 
+    let processor_config = hal::processor::ProcessorConfig::builder()
+        .chunk_options(hal::processor::ChunkOptions::default())
+        .embedding_dimensions(768)
+        .build();
+    let chunks: Vec<hal::processor::TextChunk> = pages
+        .into_iter()
+        .filter_map(|p| chunk_markdown(&p.content, &processor_config.chunk_options).ok())
+        .flatten()
+        .collect();
+
     // Save to file if output is specified
     if let Some(output_file) = args.output {
-        // Serialize pages to JSON
-        let json = serde_json::to_string_pretty(&pages)?;
+        // Serialize chunks to JSON
+        let json = serde_json::to_string_pretty(&chunks)?;
         tokio::fs::write(output_file.clone(), json).await?;
         println!("Saved crawled content to {}", output_file.display());
     }
