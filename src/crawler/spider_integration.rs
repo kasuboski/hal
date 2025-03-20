@@ -1,4 +1,28 @@
-//! Integration with spider library for web crawling
+//! # Spider Library Integration Module
+//! 
+//! This module integrates with the Spider web crawling library to provide the core
+//! crawling functionality for the RAG pipeline. It transforms raw HTML content into
+//! structured, clean text suitable for further processing.
+//! 
+//! ## Key Components
+//! 
+//! - `crawl_website`: Main function to crawl a website with given configuration
+//! - Integration with Spider library's async crawling capabilities
+//! - Content transformation pipeline for HTML to Markdown conversion
+//! 
+//! ## Features
+//! 
+//! - Asynchronous crawling with Tokio runtime
+//! - URL filtering with regex patterns
+//! - Markdown conversion for cleaner text processing
+//! - Readability-focused content extraction
+//! - Quality filtering to skip low-value pages
+//! - Structured logging and instrumentation
+//! - Proper error propagation
+//! 
+//! This module forms the foundation of the content acquisition phase in the
+//! RAG pipeline, gathering the raw material that will be processed, embedded,
+//! and indexed for retrieval.
 
 use regex::Regex;
 use spider::compact_str::CompactString;

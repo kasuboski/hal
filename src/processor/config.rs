@@ -1,4 +1,26 @@
-//! Configuration for the processor module
+//! # Processor Configuration Module
+//! 
+//! This module provides configuration structures and builders for the content processor
+//! component of the RAG pipeline. It allows fine-tuning of chunking behavior, embedding
+//! dimensions, and LLM model selection.
+//! 
+//! ## Key Components
+//! 
+//! - `ChunkOptions`: Controls the chunking behavior (size and overlap)
+//! - `ProcessorConfig`: Complete configuration for the processor pipeline
+//! - `ProcessorConfigBuilder`: Builder pattern implementation for easier configuration
+//! 
+//! ## Features
+//! 
+//! - Default configurations suitable for general RAG use cases
+//! - Builder pattern for flexible and fluent configuration
+//! - Independent control of chunk size and overlap parameters
+//! - Model selection for LLM-powered summarization and context generation
+//! - Embedding dimension configuration to match the chosen embedding model
+//! 
+//! The configuration parameters in this module significantly impact RAG performance,
+//! affecting the granularity of chunks, the quality of context generation, and the
+//! dimensions of the vector space used for similarity search.
 
 /// Configuration for chunking text
 #[derive(Debug, Clone)]

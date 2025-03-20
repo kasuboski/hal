@@ -1,3 +1,31 @@
+//! # HAL CLI Application
+//! 
+//! This module implements the command-line interface for the HAL framework,
+//! providing access to its RAG capabilities through a set of subcommands.
+//! 
+//! ## Key Components
+//! 
+//! - CLI argument parsing with clap
+//! - Subcommands for different RAG operations:
+//!   - `chat`: Interactive TUI-based chat interface
+//!   - `crawl`: Website content acquisition
+//!   - `index`: Content processing and storage
+//!   - `search`: Semantic search with RAG capabilities
+//!   - `list`: Index management and inspection
+//!   - `reembed`: Vector regeneration for existing content
+//! 
+//! ## Features
+//! 
+//! - Configurable crawling with depth and rate controls
+//! - Flexible indexing with customizable chunking parameters
+//! - Semantic search with source filtering
+//! - Progress tracking for long-running operations
+//! - Telemetry integration for monitoring
+//! - Both JSON and text output formats
+//! 
+//! The CLI provides a unified interface to the various components of the HAL framework,
+//! enabling end-to-end RAG workflows from content acquisition to knowledge retrieval.
+
 mod telemetry;
 mod tui;
 

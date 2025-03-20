@@ -1,3 +1,26 @@
+//! # TUI Application State Module
+//! 
+//! This module provides the core application state management for the terminal user interface.
+//! It handles user input, event processing, and maintains the conversation state.
+//! 
+//! ## Key Components
+//! 
+//! - `App`: Main application state structure that tracks all UI state
+//! 
+//! ## Features
+//! 
+//! - Text input handling with cursor management
+//! - Multi-line text editing with proper line wrapping
+//! - Mouse and keyboard event processing
+//! - Scrolling for both chat history and input field
+//! - Message rendering with markdown support
+//! - Loading indicator animations
+//! - Debug logging capabilities
+//! 
+//! The application state is the central component that coordinates all user interactions,
+//! manages the display of messages, and handles input editing with support for complex
+//! text operations like cursor positioning and scrolling.
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use ratatui::text::Text;
 use ratatui::widgets::ScrollbarState;

@@ -1,4 +1,30 @@
-//! Database operations for the index module
+//! # Vector Database Operations Module
+//! 
+//! This module provides the core database operations for the vector index in the RAG pipeline.
+//! It implements the LibSQL interface for storing, retrieving, and managing embeddings and
+//! associated content.
+//! 
+//! ## Key Components
+//! 
+//! - `Database`: Main class that encapsulates all database operations
+//! 
+//! ## Features
+//! 
+//! - LibSQL connection management (local and remote)
+//! - Website metadata CRUD operations
+//! - Chunk storage with vector embeddings
+//! - Transactional operations for data integrity
+//! - Efficient binary encoding of embeddings
+//! - Concurrent processing for batch operations
+//! - Reembedding functionality for updating vector representations
+//! - URL and domain-based indexing and retrieval
+//! 
+//! ## Implementation Details
+//! 
+//! The database layer uses LibSQL (SQLite with vector extensions) for efficient
+//! storage and retrieval of vector embeddings. It maintains referential integrity
+//! between websites and their associated chunks, while providing optimized access
+//! patterns for vector similarity search.
 
 use crate::index::error::DbError;
 use crate::index::schema;

@@ -1,4 +1,22 @@
-//! Content extraction functionality for the crawler module
+//! # Content Extraction Module
+//! 
+//! This module provides utilities for extracting structured content and metadata
+//! from HTML pages. It's responsible for parsing HTML documents and extracting
+//! valuable information for the RAG pipeline.
+//! 
+//! ## Key Components
+//! 
+//! - `extract_metadata`: Extracts standard metadata from HTML (title, description, etc.)
+//! 
+//! ## Features
+//! 
+//! - Robust HTML parsing using the scraper library
+//! - Extraction of common metadata fields from web pages
+//! - Domain extraction for source attribution
+//! - Error handling for malformed HTML or missing data
+//! 
+//! The extracted data becomes part of the document metadata in the RAG system,
+//! which can be used for filtering, ranking, and providing context to the LLM.
 
 use crate::crawler::error::CrawlError;
 use crate::crawler::PageMetadata;

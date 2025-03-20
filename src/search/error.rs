@@ -1,4 +1,25 @@
-//! Error types for the search module
+//! # Search Error Types Module
+//! 
+//! This module defines error types specific to the search component of the RAG pipeline.
+//! It provides structured error handling for various failure modes during semantic search.
+//! 
+//! ## Key Components
+//! 
+//! - `SearchError`: Enum representing different types of search failures
+//! 
+//! ## Features
+//! 
+//! - Specialized error types for different search failure scenarios
+//! - Database error handling through composition with `DbError`
+//! - Embedding generation error handling
+//! - Query processing error handling
+//! - Result processing error handling
+//! - Parameter validation error handling
+//! - Conversion implementations for common error types
+//! 
+//! The error types in this module help with debugging search issues and provide
+//! useful information about where in the search pipeline a failure occurred,
+//! enabling better error handling and user feedback.
 
 use crate::index::error::DbError;
 use thiserror::Error;

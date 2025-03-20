@@ -1,4 +1,35 @@
-//! Markdown chunking functionality for the processor module
+//! # Markdown Chunking Module
+//! 
+//! This module provides sophisticated text chunking functionality specifically optimized
+//! for Markdown content. It intelligently splits documents into semantically meaningful
+//! segments while preserving important structural elements.
+//! 
+//! ## Key Components
+//! 
+//! - `TextChunk`: Represents a segment of text with metadata and position information
+//! - `chunk_markdown`: Primary function for splitting Markdown into chunks
+//! 
+//! ## Features
+//! 
+//! - Structure-aware chunking that respects:
+//!   - Paragraph boundaries
+//!   - Code block integrity
+//!   - Heading hierarchies
+//!   - Document section boundaries
+//! - Configurable chunk sizes with overlap for context continuity
+//! - Metadata preservation (headings, positions) for improved retrieval
+//! - UTF-8 safe text handling
+//! 
+//! ## Chunking Strategy
+//! 
+//! The chunker uses a sophisticated algorithm that:
+//! 1. Parses Markdown with pulldown_cmark to understand document structure
+//! 2. Attempts to split at natural boundaries (paragraphs, code blocks, etc.)
+//! 3. Maintains content integrity by avoiding splits in the middle of important elements
+//! 4. Associates chunks with their parent headings for context preservation
+//! 
+//! This structure-aware chunking is critical for RAG quality as it ensures that
+//! the indexed content maintains semantic coherence and proper context.
 
 use crate::processor::error::ProcessError;
 use crate::processor::ChunkOptions;
