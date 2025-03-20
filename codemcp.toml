@@ -1,2 +1,8 @@
+project_prompt = '''
+- You can find general guidelines in the `.cursor/rules` folder.
+- When you are done with your task, run format and lint commands
+'''
+
+[commands]
 format = [".hal/fmt.sh"]
 lint = [".hal/lint.sh"]
