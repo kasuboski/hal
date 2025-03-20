@@ -48,14 +48,20 @@ pub enum SearchError {
     InvalidParameters(String),
 }
 
-impl From<libsql::Error> for SearchError {
-    fn from(err: libsql::Error) -> Self {
-        SearchError::Database(DbError::Query(err.to_string()))
+impl From<DbError> for SearchError {
+    fn from(err: DbError) -> Self {
+        SearchError::Database(err)
     }
 }
 
 impl From<serde_json::Error> for SearchError {
     fn from(err: serde_json::Error) -> Self {
         SearchError::ResultProcessing(err.to_string())
+    }
+}
+
+impl From<libsql::Error> for SearchError {
+    fn from(err: libsql::Error) -> Self {
+        SearchError::Database(DbError::Query(err.to_string()))
     }
 }

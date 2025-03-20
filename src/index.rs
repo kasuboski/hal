@@ -30,7 +30,7 @@
 //! source attribution and metadata for retrieved results.
 
 mod database;
-mod error;
+pub mod error;
 mod schema;
 
 pub use database::Database;
