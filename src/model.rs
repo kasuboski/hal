@@ -32,6 +32,20 @@ impl
         RateLimitedEmbeddingModel<gemini::embedding::EmbeddingModel>,
     >
 {
+    pub fn new_gemini_from_env() -> Self {
+        let gemini_api_key = std::env::var("GEMINI_API_KEY")
+            .expect("GEMINI_API_KEY environment variable must be set");
+        let gemini_client = gemini::Client::new(&gemini_api_key);
+        Self::new_gemini(gemini_client)
+    }
+
+    pub fn new_gemini_free_from_env() -> Self {
+        let gemini_api_key = std::env::var("GEMINI_FREE_API_KEY")
+            .expect("GEMINI_FREE_API_KEY environment variable must be set");
+        let gemini_client = gemini::Client::new(&gemini_api_key);
+        Self::new_gemini_free(gemini_client)
+    }
+
     pub fn new_gemini(gemini_client: gemini::Client) -> Self {
         let completion_limiter = RateLimiter::direct(Quota::per_minute(
             NonZeroU32::new(2000).expect("must create rate limit"),

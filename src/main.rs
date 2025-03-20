@@ -5,7 +5,6 @@ use anyhow::anyhow;
 use clap::{Args, Parser, Subcommand};
 use hal::processor::chunk_markdown;
 use indicatif::{ProgressBar, ProgressStyle};
-use rig::providers::gemini;
 use std::path::PathBuf;
 use telemetry::OtelGuard;
 use tokio::sync::mpsc;
@@ -187,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Some(Commands::Chat(_args)) => {
             // Get API key from environment variable
-            let api_key = std::env::var("GEMINI_API_KEY")
+            let api_key = std::env::var("GEMINI_FREE_API_KEY")
                 .expect("GEMINI_API_KEY environment variable must be set");
 
             // Setup file-based logging for TUI
@@ -274,13 +273,7 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
 
 #[instrument]
 async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
-    // Get API key from environment variable
-    let api_key =
-        std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
-
-    // Create client
-    let gemini = gemini::Client::new(&api_key);
-    let client = hal::model::Client::new_gemini(gemini);
+    let client = hal::model::Client::new_gemini_from_env();
 
     // Create database connection
     let db = hal::index::Database::new_local_libsql().await?;
@@ -401,11 +394,7 @@ async fn search_command(args: SearchArgs) -> anyhow::Result<()> {
 
     println!("Searching for: {}", args.query);
 
-    // Create a client
-    let api_key =
-        std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
-    let gemini = gemini::Client::new(&api_key);
-    let client = hal::model::Client::new_gemini(gemini);
+    let client = hal::model::Client::new_gemini_free_from_env();
 
     // Create search options
     let options = hal::search::SearchOptions {
@@ -535,13 +524,7 @@ async fn reembed_command(args: ReembedArgs) -> anyhow::Result<()> {
 
     println!("Using concurrency level: {}", args.concurrency);
 
-    // Get API key from environment variable
-    let api_key =
-        std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY environment variable must be set");
-
-    // Create client for embedding generation
-    let gemini = gemini::Client::new(&api_key);
-    let client = hal::model::Client::new_gemini(gemini);
+    let client = hal::model::Client::new_gemini_from_env();
 
     // Create a channel for progress updates
     let (progress_sender, mut progress_receiver) = mpsc::channel(100);
