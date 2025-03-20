@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 use tracing::instrument;
 
 #[derive(Parser)]
-#[command(author, version, about = "A Rust client for Google's Gemini AI API", long_about = None)]
+#[command(author, version, about = "A Rust framework for LLM-powered Retrieval Augmented Generation", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -19,7 +19,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Start an interactive chat session with Gemini
+    /// Start an interactive chat session with an LLM
     Chat(ChatArgs),
 
     /// Crawl a website and save the content
@@ -40,7 +40,7 @@ enum Commands {
 
 #[derive(Args, Debug)]
 struct ChatArgs {
-    /// Gemini model to use (default: gemini-2.0-flash)
+    /// LLM model to use (default: gemini-2.0-flash)
     #[arg(short, long, default_value = "gemini-2.0-flash")]
     model: String,
 }

@@ -1,22 +1,31 @@
-//! # HAL - Language Model Client with RAG for Rust
+//! # HAL - Retrieval Augmented Generation Framework for Rust
 //!
-//! This crate provides an idiomatic Rust interface for working with large language models,
-//! featuring a robust Retrieval-Augmented Generation (RAG) framework. It supports various
-//! model providers and includes comprehensive tools for building AI-powered applications.
+//! HAL is a comprehensive Retrieval-Augmented Generation (RAG) framework for Rust,
+//! providing the tools needed to build AI-powered applications with semantic search
+//! capabilities. It integrates web crawling, content processing, vector storage,
+//! and LLM integration into a cohesive system.
+//!
+//! ## Core Components
+//!
+//! - **LLM Client**: Rate-limited clients for different model providers
+//! - **Web Crawler**: Built on the `spider` library for efficient content extraction
+//! - **Content Processor**: Smart text chunking and processing for RAG applications
+//! - **Vector Database**: LibSQL-based storage for embeddings and content
+//! - **Semantic Search**: Vector-based search with RAG integration
 //!
 //! ## Features
 //!
-//! - Flexible client configuration for different model providers
-//! - Rate-limited content generation with automatic retries
-//! - Chat sessions for multi-turn conversations
-//! - Efficient embedding generation with caching
-//! - Comprehensive RAG framework:
-//!   - Website crawling and content extraction
-//!   - Smart text chunking and processing
-//!   - Vector indexing with LibSQL
-//!   - Semantic search capabilities
-//! - Async API with Tokio
-//! - Robust error handling and logging
+//! - Flexible client configuration for different LLM providers
+//! - Rate-limited content generation with configurable quotas
+//! - Efficient embedding generation for semantic search
+//! - Comprehensive RAG pipeline:
+//!   - Website crawling with depth and rate controls
+//!   - Smart text chunking with configurable parameters
+//!   - Vector indexing with metadata storage
+//!   - Semantic search with relevance scoring
+//! - Terminal-based chat interface
+//! - Async API powered by Tokio
+//! - Robust error handling and telemetry integration
 //!
 //! ## Example
 //!
@@ -26,22 +35,22 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a Gemini client with API key and rate limiting
+//!     // Create a client with rate limiting
 //!     let gemini_client = gemini::Client::new("your-api-key");
 //!     let client = Client::new_gemini(gemini_client);
 //!
-//!     // Create an agent with a preamble for storytelling
+//!     // Create an agent with a preamble
 //!     let completion = client.completion().clone();
 //!     let agent = AgentBuilder::new(completion)
-//!         .preamble("You are a creative storyteller. Tell an engaging story based on the given prompt:")
+//!         .preamble("You are a helpful assistant.")
 //!         .build();
 //!
-//!     // Generate a story using the agent
-//!     let story = agent
-//!         .prompt("Tell me a story about a robot learning to feel emotions.")
+//!     // Generate content using the agent
+//!     let response = agent
+//!         .prompt("Tell me about retrieval augmented generation.")
 //!         .await?;
 //!
-//!     println!("{}", story);
+//!     println!("{}", response);
 //!     Ok(())
 //! }
 //! ```

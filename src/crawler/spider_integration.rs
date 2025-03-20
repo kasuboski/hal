@@ -36,7 +36,7 @@ pub async fn crawl_website(
     let base_path = regex::escape(base_url.path());
     let domain = base_url
         .host_str()
-        .ok_or_else(|| url::ParseError::EmptyHost)?;
+        .ok_or(url::ParseError::EmptyHost)?;
     let domain = regex::escape(domain);
     let scheme = base_url.scheme();
 

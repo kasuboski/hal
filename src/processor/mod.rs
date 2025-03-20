@@ -118,7 +118,7 @@ where
     let mut processed_chunks = Vec::new();
 
     // Generate summary of page to use for context
-    let summary = generate_summary(&client, &page.content, &config.llm_model).await?;
+    let summary = generate_summary(client, &page.content, &config.llm_model).await?;
 
     info!("Created {} chunks from {}", chunks.len(), page.url);
 

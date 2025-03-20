@@ -67,7 +67,7 @@ pub fn chunk_markdown(
         match &event {
             Event::Text(text) => {
                 let words = text
-                    .split_inclusive(|s| s == ' ' || s == '\n')
+                    .split_inclusive([' ', '\n'])
                     .map(String::from);
                 // Add the text to the current chunk
                 current_chunk.extend(words);
@@ -148,8 +148,7 @@ pub fn chunk_markdown(
                     // Add a marker for the code block start
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last()
-                            .and_then(|c| Some(c.ends_with('\n')))
+                            .last().map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -158,21 +157,17 @@ pub fn chunk_markdown(
                     // Mark the start of a paragraph
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last()
-                            .and_then(|c| Some(c.ends_with('\n')))
+                            .last().map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
                     }
-                } else {
-                    if !current_chunk.is_empty()
-                        && !current_chunk
-                            .last()
-                            .and_then(|c| Some(c.ends_with(['\n', ' ']) || c.ends_with(' ')))
-                            .unwrap_or(false)
-                    {
-                        current_chunk.push(" ".to_string());
-                    }
+                } else if !current_chunk.is_empty()
+                    && !current_chunk
+                        .last().map(|c| c.ends_with(['\n', ' ']) || c.ends_with(' '))
+                        .unwrap_or(false)
+                {
+                    current_chunk.push(" ".to_string());
                 }
             }
             Event::End(tag) => {
@@ -184,8 +179,7 @@ pub fn chunk_markdown(
                     // Add a marker for the code block end
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last()
-                            .and_then(|c| Some(c.ends_with('\n')))
+                            .last().map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -196,8 +190,7 @@ pub fn chunk_markdown(
 
                     // Add a newline after paragraphs
                     if !current_chunk
-                        .last()
-                        .and_then(|c| Some(c.ends_with('\n')))
+                        .last().map(|c| c.ends_with('\n'))
                         .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -212,8 +205,7 @@ pub fn chunk_markdown(
                         // We've captured the heading text in previous Text events
                         // Add a newline after headings
                         if !current_chunk
-                            .last()
-                            .and_then(|c| Some(c.ends_with('\n')))
+                            .last().map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                         {
                             current_chunk.push("\n".to_string());
@@ -238,8 +230,7 @@ pub fn chunk_markdown(
                 // Add a space to separate elements
                 if !current_chunk.is_empty()
                     && !current_chunk
-                        .last()
-                        .and_then(|c| Some(c.ends_with('\n') || c.ends_with(' ')))
+                        .last().map(|c| c.ends_with('\n') || c.ends_with(' '))
                         .unwrap_or(false)
                 {
                     current_chunk.push(" ".to_string());

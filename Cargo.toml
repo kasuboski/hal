@@ -2,7 +2,7 @@
 name = "hal"
 version = "0.1.0"
 edition = "2021"
-description = "A Rust project for ai funz"
+description = "A Rust framework for building LLM-powered RAG applications"
 license = "MIT"
 
 [dependencies]
