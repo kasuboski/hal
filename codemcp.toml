@@ -1,2 +1,2 @@
-format = ["cargo", "fmt"]
-lint = ["cargo", "clippy"]
+format = [".hal/fmt.sh"]
+lint = [".hal/lint.sh"]
