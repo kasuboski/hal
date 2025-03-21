@@ -29,14 +29,14 @@
 mod telemetry;
 mod tui;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use clap::{Args, Parser, Subcommand};
-use hal::processor::chunk_markdown;
+use hal::{crawler::CrawledPage, processor::chunk_markdown};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 use telemetry::OtelGuard;
 use tokio::sync::mpsc;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 #[derive(Parser)]
 #[command(author, version, about = "A Rust framework for LLM-powered Retrieval Augmented Generation", long_about = None)]
@@ -311,6 +311,43 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
 }
 
 #[instrument]
+async fn crawl_url(
+    source: &str,
+    max_depth: u32,
+    max_pages: u32,
+) -> anyhow::Result<Vec<CrawledPage>> {
+    // info!("Check if page is already crawled");
+    // if let Ok(pages) = hal::crawler::storage::load_domain(source).await {
+    //     return Ok(pages
+    //         .into_iter()
+    //         .map(CrawledPage::from)
+    //         .collect::<Vec<CrawledPage>>());
+    // };
+    info!("Fetching {}...", source);
+
+    // Create crawler configuration
+    let config = hal::crawler::CrawlerConfig::builder()
+        .max_depth(max_depth)
+        .max_pages(max_pages)
+        .rate_limit_ms(500)
+        .respect_robots_txt(true)
+        .user_agent("hal-rag/0.1".to_string())
+        .exclude_selectors(vec![
+            "nav".to_string(),
+            "footer".to_string(),
+            "header".to_string(),
+            ".ads".to_string(),
+            "#comments".to_string(),
+        ])
+        .build();
+
+    // Crawl the website
+    hal::crawler::crawl_website(source, config)
+        .await
+        .context("crawl error")
+}
+
+#[instrument]
 async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
     let client = hal::model::Client::new_gemini_from_env();
 
@@ -325,26 +362,7 @@ async fn index_command(args: IndexArgs) -> anyhow::Result<()> {
     };
 
     let pages = if args.source.starts_with("http") {
-        println!("Fetching {}...", args.source);
-
-        // Create crawler configuration
-        let config = hal::crawler::CrawlerConfig::builder()
-            .max_depth(max_depth)
-            .max_pages(max_pages)
-            .rate_limit_ms(500)
-            .respect_robots_txt(true)
-            .user_agent("hal-rag/0.1".to_string())
-            .exclude_selectors(vec![
-                "nav".to_string(),
-                "footer".to_string(),
-                "header".to_string(),
-                ".ads".to_string(),
-                "#comments".to_string(),
-            ])
-            .build();
-
-        // Crawl the website
-        hal::crawler::crawl_website(&args.source, config).await?
+        crawl_url(&args.source, max_depth, max_pages).await?
     } else {
         println!("Loading from file {}...", args.source);
 
