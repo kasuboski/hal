@@ -1445,6 +1445,7 @@ dependencies = [
  "opentelemetry-stdout",
  "opentelemetry_sdk",
  "pulldown-cmark",
+ "quick-xml",
  "ratatui",
  "regex",
  "reqwest 0.11.27",

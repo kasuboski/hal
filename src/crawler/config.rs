@@ -1,16 +1,16 @@
 //! # Crawler Configuration Module
-//! 
+//!
 //! This module provides configuration options for the web crawler, including
 //! controls for crawl depth, rate limiting, and content selection. It uses a
 //! builder pattern for flexible configuration.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `CrawlerConfig`: The main configuration struct with crawler parameters
 //! - `CrawlerConfigBuilder`: Builder pattern implementation for easier configuration
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Default configurations suitable for polite crawling
 //! - Fine-grained control over crawl behavior (depth, pages, rate limits)
 //! - Content selection via CSS selectors

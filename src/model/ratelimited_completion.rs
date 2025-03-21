@@ -1,17 +1,17 @@
 //! # Rate-Limited Completion Model Module
-//! 
+//!
 //! This module provides a wrapper around any completion model that adds rate limiting
 //! capabilities to prevent API quota exhaustion and manage costs.
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Transparent rate limiting for any model implementing the `CompletionModel` trait
 //! - Configurable rate limits with governor crate integration
 //! - Instrumentation with tracing spans for monitoring and debugging
 //! - Direct integration with the agent framework for conversation management
-//! 
+//!
 //! ## Usage
-//! 
+//!
 //! The rate-limited model can be configured with different quota settings for
 //! different usage tiers (standard vs free). When the rate limit is reached,
 //! the model will transparently wait until requests are allowed again.

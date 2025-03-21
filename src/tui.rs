@@ -1,20 +1,20 @@
 //! # Terminal User Interface Module
-//! 
+//!
 //! This module provides a terminal-based user interface for interacting with the
 //! HAL framework, enabling chat-based RAG interactions without requiring a graphical
 //! environment.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `app`: Application state management and event handling
 //! - `error`: Error types specific to the TUI
 //! - `event`: Event system for handling terminal and application events
 //! - `logging`: Terminal-based logging utilities
 //! - `markdown`: Markdown rendering for terminal display
 //! - `ui`: UI rendering and layout components
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Chat-based interface with markdown support
 //! - Keyboard and mouse interaction
 //! - Asynchronous LLM communication
@@ -22,7 +22,7 @@
 //! - Loading indicators for ongoing operations
 //! - Syntax highlighting for code blocks
 //! - Responsive layout adapting to terminal size
-//! 
+//!
 //! The TUI module provides a complete terminal interface for RAG applications,
 //! allowing users to interact with the system through a familiar chat interface
 //! while leveraging the full capabilities of the HAL framework.

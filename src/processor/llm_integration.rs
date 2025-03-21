@@ -1,22 +1,22 @@
 //! # LLM Integration Module
-//! 
+//!
 //! This module provides integration with Language Models for enhancing the RAG pipeline
 //! through AI-generated summaries and context information. It leverages LLMs to improve
 //! the semantic understanding and retrieval quality of processed content.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `generate_summary`: Creates concise summaries of document content
 //! - `generate_context_string`: Produces rich context information for document chunks
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - LLM-powered document summarization for high-level understanding
 //! - Context generation that combines metadata and content for improved relevance
 //! - Integration with the agent framework for conversation-like interactions
 //! - Structured prompting for consistent, high-quality outputs
 //! - Instrumentation with tracing for monitoring and performance analysis
-//! 
+//!
 //! This module represents a key differentiator for advanced RAG systems by using
 //! AI to enhance the semantic quality of chunked content. The generated summaries
 //! and context strings help bridge the gap between raw text and the nuanced understanding

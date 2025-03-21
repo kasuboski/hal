@@ -1,21 +1,21 @@
 //! # Processor Error Types Module
-//! 
+//!
 //! This module defines error types specific to the content processor component of the RAG pipeline.
 //! It provides structured error handling for various failure modes during content processing.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `ProcessError`: Enum representing different types of processor failures
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Specialized error types for different processor failure scenarios
 //! - Embedding-related errors for vector generation issues
 //! - LLM-related errors for summarization and context generation failures
 //! - Chunking errors for text segmentation problems
 //! - Task and concurrency management errors
 //! - Detailed error messages for easier debugging
-//! 
+//!
 //! The error handling in this module ensures that failures in the content processing
 //! pipeline are properly captured, reported, and can be appropriately handled or
 //! recovered from in the broader RAG system.

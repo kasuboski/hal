@@ -1,18 +1,18 @@
 //! # Rate-Limited Embedding Model Module
-//! 
+//!
 //! This module provides a wrapper around any embedding model that adds rate limiting
 //! capabilities to prevent API quota exhaustion and manage costs when generating
 //! embeddings for semantic search.
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Transparent rate limiting for any model implementing the `EmbeddingModel` trait
 //! - Configurable rate limits with governor crate integration
 //! - Instrumentation with tracing spans for monitoring and debugging
 //! - Maintains compatibility with the original model's dimensionality and constraints
-//! 
+//!
 //! ## Usage
-//! 
+//!
 //! The rate-limited model transparently handles waiting when the rate limit is
 //! reached, making it suitable for batch processing of documents where a large
 //! number of embeddings need to be generated without exceeding API limits.

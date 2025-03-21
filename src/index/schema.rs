@@ -1,27 +1,27 @@
 //! # Database Schema Module
-//! 
+//!
 //! This module defines and manages the database schema for the vector index in the RAG pipeline.
 //! It handles table creation, index management, and schema migrations.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `initialize_schema`: Function to create and update the database schema
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Websites table for source metadata
 //! - Chunks table for content segments with embeddings
 //! - Foreign key relationships for referential integrity
 //! - Indexes for efficient lookups and vector search
 //! - Vector-specific storage optimizations
 //! - Schema versioning and migration support
-//! 
+//!
 //! ## Schema Design
-//! 
+//!
 //! The schema implements a two-table design:
 //! 1. `websites` - Stores metadata about content sources with unique URL constraints
 //! 2. `chunks` - Stores content segments with their vector embeddings and foreign keys to websites
-//! 
+//!
 //! The schema includes specialized indexes for vector similarity search, enabling
 //! efficient retrieval of semantically similar content during RAG operations.
 

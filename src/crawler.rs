@@ -28,6 +28,7 @@ mod config;
 mod content_extraction;
 mod error;
 mod spider_integration;
+pub mod storage;
 
 // Re-export important types and functions
 pub use config::CrawlerConfig;

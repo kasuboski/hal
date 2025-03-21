@@ -1,21 +1,21 @@
 //! # Crawler Error Types Module
-//! 
+//!
 //! This module defines error types specific to the crawler component of the RAG pipeline.
 //! It provides structured error handling for various failure modes during web crawling.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `CrawlError`: Enum representing different types of crawler failures
 //! - Conversion implementations to integrate with the crate's global error system
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Specialized error types for different crawling failure scenarios
 //! - HTTP errors for network and request issues
 //! - Parsing errors for HTML and URL handling
 //! - Rate limiting and robots.txt compliance errors
 //! - Integration with the crate's main error type for consistent error handling
-//! 
+//!
 //! These error types enable proper debugging and user feedback during the
 //! content acquisition phase of the RAG pipeline.
 

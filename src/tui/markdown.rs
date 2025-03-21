@@ -1,15 +1,15 @@
 //! # Markdown Rendering Module for TUI
-//! 
+//!
 //! This module provides functionality for rendering Markdown content in the terminal
 //! user interface using ratatui's text rendering capabilities. It converts Markdown
 //! syntax into styled terminal text with proper formatting.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `markdown_to_ratatui_text`: Converts markdown strings to ratatui's styled Text
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Heading rendering with different colors based on level
 //! - Code block formatting with language indicators
 //! - Syntax highlighting for inline code
@@ -19,7 +19,7 @@
 //! - Link formatting with underlines
 //! - Proper paragraph spacing
 //! - Color-coded elements for improved readability
-//! 
+//!
 //! This module is critical for the chat interface's ability to display rich, formatted
 //! responses from the LLM, preserving the structure and emphasis of the original markdown.
 

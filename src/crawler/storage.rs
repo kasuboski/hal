@@ -142,7 +142,8 @@ pub async fn store(entry: &PageEntry) -> Result<()> {
     fs::write(
         storage_path,
         format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}", xml),
-    ).await?;
+    )
+    .await?;
     Ok(())
 }
 
@@ -203,7 +204,6 @@ pub async fn load_domain(domain: &str) -> Result<Vec<PageEntry>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::runtime::Runtime;
 
     #[test]
     fn test_extract_domain() {
@@ -251,60 +251,4 @@ mod tests {
         assert_eq!(back.url, crawled.url);
         assert_eq!(back.content, crawled.content);
     }
-
-    #[test]
-    fn test_store_batch_with_different_types() {
-        // This is just a compile-time test to ensure the function accepts different types
-        let entries = vec![
-            PageEntry {
-                url: "https://example.com/1".to_string(),
-                content: "Content 1".to_string(),
-                metadata: PageMetadata {
-                    title: Some("Page 1".to_string()),
-                    description: None,
-                    domain: "example.com".to_string(),
-                    publication_date: None,
-                    author: None,
-                },
-            },
-            PageEntry {
-                url: "https://example.com/2".to_string(),
-                content: "Content 2".to_string(),
-                metadata: PageMetadata {
-                    title: Some("Page 2".to_string()),
-                    description: None,
-                    domain: "example.com".to_string(),
-                    publication_date: None,
-                    author: None,
-                },
-            },
-        ];
-
-        // Below is how you'd typically run these in an async test
-        // let rt = Runtime::new().unwrap();
-        // rt.block_on(async {
-        //     // With a Vec<PageEntry>
-        //     store_batch(entries.clone()).await.unwrap();
-        //     
-        //     // With a slice &[PageEntry]
-        //     store_batch(&entries[..]).await.unwrap();
-        //     
-        //     // With an array reference &[PageEntry; 2]
-        //     let entries_array: [PageEntry; 2] = [entries[0].clone(), entries[1].clone()];
-        //     store_batch(&entries_array).await.unwrap();
-        //     
-        //     // With an iterator that produces references
-        //     store_batch(entries.iter()).await.unwrap();
-        // });
-    }
-
-    // Note: To run async tests properly, you would use:
-    // #[tokio::test]
-    // async fn test_async_storage() {
-    //     // Test async store and load functions
-    //     let entry = PageEntry {...};
-    //     store(&entry).await.unwrap();
-    //     let loaded = load(&entry.url).await.unwrap();
-    //     assert_eq!(entry.url, loaded.url);
-    // }
 }

@@ -20,3 +20,5 @@ index.db
 *.bak
 *.db*
 **/*.log
+
+.hal/crawler/

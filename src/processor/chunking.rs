@@ -1,16 +1,16 @@
 //! # Markdown Chunking Module
-//! 
+//!
 //! This module provides sophisticated text chunking functionality specifically optimized
 //! for Markdown content. It intelligently splits documents into semantically meaningful
 //! segments while preserving important structural elements.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `TextChunk`: Represents a segment of text with metadata and position information
 //! - `chunk_markdown`: Primary function for splitting Markdown into chunks
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Structure-aware chunking that respects:
 //!   - Paragraph boundaries
 //!   - Code block integrity
@@ -19,15 +19,15 @@
 //! - Configurable chunk sizes with overlap for context continuity
 //! - Metadata preservation (headings, positions) for improved retrieval
 //! - UTF-8 safe text handling
-//! 
+//!
 //! ## Chunking Strategy
-//! 
+//!
 //! The chunker uses a sophisticated algorithm that:
 //! 1. Parses Markdown with pulldown_cmark to understand document structure
 //! 2. Attempts to split at natural boundaries (paragraphs, code blocks, etc.)
 //! 3. Maintains content integrity by avoiding splits in the middle of important elements
 //! 4. Associates chunks with their parent headings for context preservation
-//! 
+//!
 //! This structure-aware chunking is critical for RAG quality as it ensures that
 //! the indexed content maintains semantic coherence and proper context.
 
@@ -97,9 +97,7 @@ pub fn chunk_markdown(
     for event in parser {
         match &event {
             Event::Text(text) => {
-                let words = text
-                    .split_inclusive([' ', '\n'])
-                    .map(String::from);
+                let words = text.split_inclusive([' ', '\n']).map(String::from);
                 // Add the text to the current chunk
                 current_chunk.extend(words);
 
@@ -179,7 +177,8 @@ pub fn chunk_markdown(
                     // Add a marker for the code block start
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last().map(|c| c.ends_with('\n'))
+                            .last()
+                            .map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -188,14 +187,16 @@ pub fn chunk_markdown(
                     // Mark the start of a paragraph
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last().map(|c| c.ends_with('\n'))
+                            .last()
+                            .map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
                     }
                 } else if !current_chunk.is_empty()
                     && !current_chunk
-                        .last().map(|c| c.ends_with(['\n', ' ']) || c.ends_with(' '))
+                        .last()
+                        .map(|c| c.ends_with(['\n', ' ']) || c.ends_with(' '))
                         .unwrap_or(false)
                 {
                     current_chunk.push(" ".to_string());
@@ -210,7 +211,8 @@ pub fn chunk_markdown(
                     // Add a marker for the code block end
                     if !current_chunk.is_empty()
                         && !current_chunk
-                            .last().map(|c| c.ends_with('\n'))
+                            .last()
+                            .map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -221,7 +223,8 @@ pub fn chunk_markdown(
 
                     // Add a newline after paragraphs
                     if !current_chunk
-                        .last().map(|c| c.ends_with('\n'))
+                        .last()
+                        .map(|c| c.ends_with('\n'))
                         .unwrap_or(false)
                     {
                         current_chunk.push("\n".to_string());
@@ -236,7 +239,8 @@ pub fn chunk_markdown(
                         // We've captured the heading text in previous Text events
                         // Add a newline after headings
                         if !current_chunk
-                            .last().map(|c| c.ends_with('\n'))
+                            .last()
+                            .map(|c| c.ends_with('\n'))
                             .unwrap_or(false)
                         {
                             current_chunk.push("\n".to_string());
@@ -261,7 +265,8 @@ pub fn chunk_markdown(
                 // Add a space to separate elements
                 if !current_chunk.is_empty()
                     && !current_chunk
-                        .last().map(|c| c.ends_with('\n') || c.ends_with(' '))
+                        .last()
+                        .map(|c| c.ends_with('\n') || c.ends_with(' '))
                         .unwrap_or(false)
                 {
                     current_chunk.push(" ".to_string());

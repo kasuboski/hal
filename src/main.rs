@@ -84,13 +84,14 @@ struct CrawlArgs {
 
     /// Crawl depth
     #[arg(short, long, default_value = "2")]
-    depth: u32,
+    max_depth: u32,
 
     /// Rate limit in milliseconds
     #[arg(short, long, default_value = "500")]
     rate: u64,
 
-    /// Save crawled content to file
+    /// Save crawled chunks to a file
+    /// Only applicaable if --chunk is specified
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -258,7 +259,7 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
     let (depth, max_pages) = if args.single {
         (0, 1) // Set to 0 and 1 if single is true
     } else {
-        (args.depth, args.max_pages) // Use provided values otherwise
+        (args.max_depth, args.max_pages) // Use provided values otherwise
     };
 
     // Create crawler configuration
@@ -278,6 +279,12 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
 
     // Crawl the website
     let pages = hal::crawler::crawl_website(&args.url, config).await?;
+
+    let store = pages
+        .iter()
+        .cloned()
+        .map(hal::crawler::storage::PageEntry::from);
+    hal::crawler::storage::store_batch(store).await?;
 
     println!("Crawled {} pages", pages.len());
     if args.chunk {

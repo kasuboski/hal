@@ -1,14 +1,14 @@
 //! # Database Error Types Module
-//! 
+//!
 //! This module defines error types specific to the vector database component of the RAG pipeline.
 //! It provides structured error handling for various failure modes during database operations.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `DbError`: Enum representing different types of database operation failures
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Specialized error types for different database failure scenarios
 //! - LibSQL-specific error handling
 //! - Schema management error handling
@@ -16,7 +16,7 @@
 //! - Connection management errors
 //! - Transaction error handling
 //! - Integration with the crate's main error type for consistent error propagation
-//! 
+//!
 //! The error types in this module provide detailed information about database failures,
 //! enabling proper error handling, debugging, and user feedback throughout the
 //! RAG pipeline.

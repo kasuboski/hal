@@ -40,6 +40,7 @@ opentelemetry-otlp = "0.28.0"
 opentelemetry-appender-tracing = "0.28.1"
 spider_utils = { version = "2.34.2", features = ["transformations"] }
 regex = "1.11.1"
+quick-xml = { version = "0.37.2", features = ["serialize"] }
 
 [dev-dependencies]
 mockito = "1.0"

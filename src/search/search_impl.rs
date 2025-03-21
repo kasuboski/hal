@@ -1,28 +1,28 @@
 //! # Semantic Search Implementation Module
-//! 
+//!
 //! This module provides the core implementation of vector similarity search for the RAG pipeline.
 //! It handles the actual search logic, vector operations, and result processing.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - `search_index`: Main function for searching the vector database
 //! - `vector_search`: Low-level vector similarity search implementation
 //! - `SearchOptions`: Configuration for search behavior and filtering
 //! - `SearchResult`: Structure for representing search results with metadata
 //! - `generate_answer_with_rag`: Generates LLM responses using retrieved context
 //! - `prepare_rag_context`: Formats search results into context for LLM consumption
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Efficient vector similarity search using LibSQL's vector extensions
 //! - Dynamic SQL query construction based on filter options
 //! - Parameterized queries for security and flexibility
 //! - Structured result processing with rich metadata
 //! - Context formatting for optimal LLM comprehension
 //! - Instrumentation with tracing for monitoring and debugging
-//! 
+//!
 //! ## Search Algorithm
-//! 
+//!
 //! The search implementation uses the vector_top_k function from LibSQL to find
 //! the k nearest neighbors to the query embedding, then applies additional filters
 //! based on metadata like source domain and date range. Results are ranked by
