@@ -89,6 +89,9 @@ pub enum StorageError {
 
     #[error("Invalid URL for storage: {0}")]
     InvalidUrl(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
 }
 
 type Result<T> = std::result::Result<T, StorageError>;
@@ -159,6 +162,21 @@ impl Storage {
         Ok(self.config.base_path.join(domain).join(filename))
     }
 
+    /// Creates a URL from a domain and filename
+    /// 
+    /// This is the reverse of get_storage_path - it takes a filepath and converts it back to a URL
+    fn create_url_from_filename(&self, domain: &str, filename: &str) -> String {
+        if filename == "index.xml" {
+            format!("https://{}", domain)
+        } else {
+            // Remove .xml extension
+            let path_part = filename.trim_end_matches(".xml");
+            // Convert underscores back to slashes if needed
+            let path_part = path_part.replace('_', "/");
+            format!("https://{}/{}", domain, path_part)
+        }
+    }
+
     /// Creates necessary directories for storage
     async fn ensure_directories(&self, path: &Path) -> io::Result<()> {
         if let Some(parent) = path.parent() {
@@ -166,7 +184,7 @@ impl Storage {
         }
         Ok(())
     }
-
+    
     /// Stores a single page entry to XML file
     pub async fn store(&self, entry: &PageEntry) -> Result<()> {
         let storage_path = self.get_storage_path(&entry.url)?;
@@ -217,23 +235,47 @@ impl Storage {
     }
 
     /// Loads all pages for a given domain
-    pub async fn load_domain(&self, domain: &str) -> Result<Vec<PageEntry>> {
-        let base_path = self.config.base_path.join(domain);
+    /// 
+    /// The domain parameter can be either a domain name (e.g., "example.com") or a full URL.
+    /// If a URL is provided, the domain will be extracted from it.
+    pub async fn load_domain(&self, domain_or_url: &str) -> Result<Vec<PageEntry>> {
+        // Try to extract domain if a URL was passed
+        let domain = if domain_or_url.contains("://") {
+            self.extract_domain(domain_or_url)?
+        } else {
+            domain_or_url.to_string()
+        };
+        
+        let base_path = self.config.base_path.join(&domain);
 
+        // Check if the domain directory exists
         if !fs::try_exists(&base_path).await? {
-            return Ok(Vec::new());
+            return Err(StorageError::NotFound(format!(
+                "No pages found for domain {}",
+                domain
+            )));
         }
 
         let mut entries = Vec::new();
-
         let mut dir_entries = fs::read_dir(base_path).await?;
+        
         while let Some(entry) = dir_entries.next_entry().await? {
             let path = entry.path();
-
+            
             if path.extension().is_some_and(|ext| ext == "xml") {
-                let xml_content = fs::read_to_string(&path).await?;
-                let pages: Pages = from_str(&xml_content)?;
-                entries.extend(pages.pages);
+                // Create a URL from domain and filename for loading
+                if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+                    let url_path = self.create_url_from_filename(&domain, file_name);
+                    
+                    // Use the load method to load the page
+                    match self.load(&url_path).await {
+                        Ok(page) => entries.push(page),
+                        Err(e) => {
+                            eprintln!("Failed to load page {}: {}", url_path, e);
+                            continue;
+                        }
+                    }
+                }
             }
         }
 
@@ -272,8 +314,15 @@ pub async fn load(url: &str) -> Result<PageEntry> {
 }
 
 /// Loads all pages for a given domain
-pub async fn load_domain(domain: &str) -> Result<Vec<PageEntry>> {
-    Storage::new().load_domain(domain).await
+pub async fn load_domain(domain_or_url: &str) -> Result<Vec<PageEntry>> {
+    Storage::new().load_domain(domain_or_url).await
+}
+
+/// Creates a URL from a domain and filename
+/// 
+/// This is the reverse of get_storage_path - it takes a filename and converts it back to a URL
+pub fn create_url_from_filename(domain: &str, filename: &str) -> String {
+    Storage::new().create_url_from_filename(domain, filename)
 }
 
 #[cfg(test)]
@@ -282,15 +331,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_domain() {
+    fn test_domain_extraction_from_url() {
+        let storage = Storage::new();
+        assert_eq!(
+            storage.extract_domain("https://example.com/page").unwrap(),
+            "example.com"
+        );
+        
+        // Test with module function
         assert_eq!(
             extract_domain("https://example.com/page").unwrap(),
             "example.com"
         );
+        
+        // Test with subdomain
         assert_eq!(
-            extract_domain("http://sub.example.com/path").unwrap(),
-            "sub.example.com"
+            extract_domain("http://blog.example.com/post").unwrap(),
+            "blog.example.com"
         );
+    }
+    
+    #[test]
+    fn test_domain_extraction_error() {
+        // Test with invalid URL
+        let result = extract_domain("not-a-url");
+        assert!(result.is_err());
+        
+        // More specifically, it should be a URL parsing error
+        match result {
+            Err(StorageError::UrlParse(_)) => (),
+            _ => panic!("Expected UrlParse error"),
+        }
     }
 
     #[test]
@@ -347,5 +418,54 @@ mod tests {
         let storage = Storage::with_config(config);
 
         assert_eq!(storage.config.base_path, PathBuf::from("/custom/path"));
+    }
+    
+    #[test]
+    fn test_create_url_from_filename() {
+        let storage = Storage::new();
+        
+        // Test root URL
+        assert_eq!(
+            storage.create_url_from_filename("example.com", "index.xml"),
+            "https://example.com"
+        );
+        
+        // Test simple path
+        assert_eq!(
+            storage.create_url_from_filename("example.com", "page.xml"),
+            "https://example.com/page"
+        );
+        
+        // Test nested path
+        assert_eq!(
+            storage.create_url_from_filename("example.com", "dir_page.xml"),
+            "https://example.com/dir/page"
+        );
+        
+        // Test with module function
+        assert_eq!(
+            create_url_from_filename("example.com", "blog_post.xml"),
+            "https://example.com/blog/post"
+        );
+    }
+    
+    #[tokio::test]
+    async fn test_load_domain_with_url() {
+        // Test load_domain with a URL instead of domain
+        let config = StorageConfig {
+            base_path: PathBuf::from("/tmp/test_load_domain"),
+        };
+        let storage = Storage::with_config(config);
+        
+        // This should extract the domain from the URL
+        let result = storage.load_domain("https://example.com/some/page").await;
+        
+        // Since the path doesn't exist, it should return a NotFound error
+        match result {
+            Err(StorageError::NotFound(msg)) => {
+                assert!(msg.contains("example.com"));
+            }
+            _ => panic!("Expected NotFound error"),
+        }
     }
 }
