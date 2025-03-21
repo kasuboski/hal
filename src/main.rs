@@ -1,10 +1,10 @@
 //! # HAL CLI Application
-//! 
+//!
 //! This module implements the command-line interface for the HAL framework,
 //! providing access to its RAG capabilities through a set of subcommands.
-//! 
+//!
 //! ## Key Components
-//! 
+//!
 //! - CLI argument parsing with clap
 //! - Subcommands for different RAG operations:
 //!   - `chat`: Interactive TUI-based chat interface
@@ -13,16 +13,16 @@
 //!   - `search`: Semantic search with RAG capabilities
 //!   - `list`: Index management and inspection
 //!   - `reembed`: Vector regeneration for existing content
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Configurable crawling with depth and rate controls
 //! - Flexible indexing with customizable chunking parameters
 //! - Semantic search with source filtering
 //! - Progress tracking for long-running operations
 //! - Telemetry integration for monitoring
 //! - Both JSON and text output formats
-//! 
+//!
 //! The CLI provides a unified interface to the various components of the HAL framework,
 //! enabling end-to-end RAG workflows from content acquisition to knowledge retrieval.
 
@@ -78,6 +78,9 @@ struct CrawlArgs {
     /// URL to crawl
     #[arg(required = true)]
     url: String,
+
+    #[arg(long, default_value = "false")]
+    chunk: bool,
 
     /// Crawl depth
     #[arg(short, long, default_value = "2")]
@@ -277,23 +280,24 @@ async fn crawl_command(args: CrawlArgs) -> anyhow::Result<()> {
     let pages = hal::crawler::crawl_website(&args.url, config).await?;
 
     println!("Crawled {} pages", pages.len());
+    if args.chunk {
+        let processor_config = hal::processor::ProcessorConfig::builder()
+            .chunk_options(hal::processor::ChunkOptions::default())
+            .embedding_dimensions(768)
+            .build();
+        let chunks: Vec<hal::processor::TextChunk> = pages
+            .into_iter()
+            .filter_map(|p| chunk_markdown(&p.content, &processor_config.chunk_options).ok())
+            .flatten()
+            .collect();
 
-    let processor_config = hal::processor::ProcessorConfig::builder()
-        .chunk_options(hal::processor::ChunkOptions::default())
-        .embedding_dimensions(768)
-        .build();
-    let chunks: Vec<hal::processor::TextChunk> = pages
-        .into_iter()
-        .filter_map(|p| chunk_markdown(&p.content, &processor_config.chunk_options).ok())
-        .flatten()
-        .collect();
-
-    // Save to file if output is specified
-    if let Some(output_file) = args.output {
-        // Serialize chunks to JSON
-        let json = serde_json::to_string_pretty(&chunks)?;
-        tokio::fs::write(output_file.clone(), json).await?;
-        println!("Saved crawled content to {}", output_file.display());
+        // Save to file if output is specified
+        if let Some(output_file) = args.output {
+            // Serialize chunks to JSON
+            let json = serde_json::to_string_pretty(&chunks)?;
+            tokio::fs::write(output_file.clone(), json).await?;
+            println!("Saved crawled content to {}", output_file.display());
+        }
     }
 
     Ok(())
