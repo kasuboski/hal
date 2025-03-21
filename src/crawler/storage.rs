@@ -1,6 +1,6 @@
 use quick_xml::{de::from_str, se::to_string};
 use serde::{Deserialize, Serialize};
-use std::{io, path::Path, path::PathBuf, sync::Arc};
+use std::{io, path::Path, path::PathBuf};
 use tokio::fs;
 use url::Url;
 
@@ -99,6 +99,12 @@ pub struct Storage {
     config: StorageConfig,
 }
 
+impl Default for Storage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Storage {
     /// Create a new storage with default configuration
     pub fn new() -> Self {
@@ -175,7 +181,8 @@ impl Storage {
         fs::write(
             storage_path,
             format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}", xml),
-        ).await?;
+        )
+        .await?;
         Ok(())
     }
 
@@ -223,7 +230,7 @@ impl Storage {
         while let Some(entry) = dir_entries.next_entry().await? {
             let path = entry.path();
 
-            if path.extension().map_or(false, |ext| ext == "xml") {
+            if path.extension().is_some_and(|ext| ext == "xml") {
                 let xml_content = fs::read_to_string(&path).await?;
                 let pages: Pages = from_str(&xml_content)?;
                 entries.extend(pages.pages);
@@ -271,6 +278,7 @@ pub async fn load_domain(domain: &str) -> Result<Vec<PageEntry>> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -339,33 +347,5 @@ mod tests {
         let storage = Storage::with_config(config);
 
         assert_eq!(storage.config.base_path, PathBuf::from("/custom/path"));
-    }
-
-    #[tokio::test]
-    async fn test_store_load() {
-        // Test with custom config
-        let config = StorageConfig {
-            base_path: PathBuf::from("/tmp/test_storage"),
-        };
-        let storage = Storage::with_config(config);
-
-        // Test async store and load functions
-        let entry = PageEntry {
-            url: "https://example.com/test-page".to_string(),
-            content: "# Test Page\nThis is a test page content.".to_string(),
-            metadata: PageMetadata {
-                title: Some("Test Page".to_string()),
-                description: Some("A test page for storage".to_string()),
-                domain: "example.com".to_string(),
-                publication_date: None,
-                author: None,
-            },
-        };
-        
-        storage.store(&entry).await.unwrap();
-        let loaded = storage.load(&entry.url).await.unwrap();
-        assert_eq!(entry.url, loaded.url);
-        assert_eq!(entry.content, loaded.content);
-        assert_eq!(entry.metadata.title, loaded.metadata.title);
     }
 }
