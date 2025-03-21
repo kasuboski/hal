@@ -1,3 +1,23 @@
+//! # LLM Client Module
+//! 
+//! This module provides a unified client interface for working with LLM services,
+//! with built-in rate limiting to prevent API quota exhaustion.
+//! 
+//! ## Key Components
+//! 
+//! - `Client`: A unified client that wraps both completion and embedding models
+//! - `RateLimitedCompletionModel`: A wrapper that adds rate limiting to any completion model
+//! - `RateLimitedEmbeddingModel`: A wrapper that adds rate limiting to any embedding model
+//! - `EmbeddingConversion`: Utilities for converting between embedding formats
+//! 
+//! ## Features
+//! 
+//! - Configurable rate limiting with different quotas (standard and free tiers)
+//! - Environment variable configuration for API keys
+//! - Instrumentation with tracing spans for monitoring
+//! - Type-safe model integration with the `rig` framework
+//! - Conversion utilities for embedding vectors
+
 use std::num::NonZeroU32;
 
 use governor::{Quota, RateLimiter};

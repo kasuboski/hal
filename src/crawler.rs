@@ -1,13 +1,35 @@
-//! Website crawler module for RAG
+//! # Website Crawler Module for RAG
 //!
-//! This module provides functionality for crawling websites,
-//! extracting content, and converting HTML to Markdown.
+//! This module provides comprehensive functionality for crawling websites,
+//! extracting content, and preparing it for the RAG pipeline. It serves as the
+//! first stage of the RAG workflow, responsible for gathering raw content.
+//!
+//! ## Key Components
+//!
+//! - `CrawlerConfig`: Configuration for the crawler, including depth, rate limits, etc.
+//! - `CrawledPage`: Represents a processed web page with content and metadata
+//! - `crawl_website`: Main function to crawl a website with the given configuration
+//! - Content extraction utilities for converting HTML to clean, processable text
+//!
+//! ## Features
+//!
+//! - Configurable crawling depth and rate limits
+//! - HTML to Markdown conversion for easier processing
+//! - Metadata extraction (title, description, author, etc.)
+//! - Respects robots.txt and can be configured for politeness
+//! - Error handling for network and parsing issues
+//!
+//! ## Usage
+//!
+//! The crawler is typically the first step in a RAG pipeline, feeding content
+//! to the processor module which then chunks it for embedding and indexing.
 
 mod config;
 mod content_extraction;
 mod error;
 mod spider_integration;
 
+// Re-export important types and functions
 pub use config::CrawlerConfig;
 pub use content_extraction::extract_metadata;
 pub use error::CrawlError;

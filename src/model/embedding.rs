@@ -1,3 +1,17 @@
+//! # Embedding Conversion Module
+//! 
+//! This module provides utilities for working with embedding vectors, including
+//! conversion between different formats and serialization/deserialization.
+//! 
+//! ## Features
+//! 
+//! - Conversion between `Embedding` objects and `Vec<f32>` for mathematical operations
+//! - Binary serialization for efficient storage in databases
+//! - Reconstruction of embeddings from binary data
+//! 
+//! This module is essential for the RAG pipeline as it enables efficient storage
+//! and retrieval of embedding vectors in the vector database.
+
 use rig::embeddings::Embedding;
 
 /// Helper functions for converting between Embedding and Vec<f32>

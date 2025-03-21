@@ -1,7 +1,35 @@
-//! Search module for RAG functionality
+//! # Semantic Search Module for RAG
 //!
-//! This module provides search capabilities for the indexed content,
-//! including vector search for semantic similarity.
+//! This module provides the vector similarity search capabilities for the RAG pipeline,
+//! enabling retrieval of relevant content based on semantic similarity rather than
+//! keyword matching. It forms the "retrieval" part of Retrieval Augmented Generation.
+//!
+//! ## Key Components
+//!
+//! - `SearchSystem`: Main interface for performing semantic searches
+//! - `SearchOptions`: Configuration for filtering and limiting search results
+//! - `SearchResult`: Represents a retrieved document with its metadata
+//!
+//! ## Features
+//!
+//! - Vector similarity search using LibSQL's vector extensions
+//! - Filtering by source, date, and other metadata
+//! - Relevance ranking based on embedding similarity
+//! - Context preparation for RAG prompt construction
+//! - Integration with LLM for answer generation from retrieved content
+//! - Efficient query embedding generation
+//!
+//! ## Search Process
+//!
+//! 1. Convert the user query to an embedding vector
+//! 2. Perform vector similarity search against the indexed embeddings
+//! 3. Apply metadata filters (source, date, etc.)
+//! 4. Retrieve and rank the most relevant content chunks
+//! 5. Prepare context for LLM consumption
+//! 6. Generate a response using the retrieved context
+//!
+//! This module bridges the gap between the vector database and the LLM,
+//! enabling knowledge augmentation through efficient semantic retrieval.
 
 mod error;
 mod search_impl;

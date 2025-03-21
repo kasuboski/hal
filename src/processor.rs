@@ -1,7 +1,33 @@
-//! Content processor module for RAG
+//! # Content Processor Module for RAG
 //!
-//! This module provides functionality for processing content,
-//! including chunking, embedding generation, and LLM integration.
+//! This module serves as the central processing component of the RAG pipeline, handling the
+//! transformation of raw content into semantically enriched, chunked documents ready for indexing.
+//! It bridges the gap between content acquisition (crawler) and storage/retrieval (index/search).
+//!
+//! ## Key Components
+//!
+//! - `TextChunk`: Represents a segment of text with metadata and position information
+//! - `ProcessedChunk`: A fully processed chunk with embedding and context
+//! - `ChunkOptions`: Configuration for text chunking behavior
+//! - `ProcessorConfig`: Complete configuration for the processor pipeline
+//!
+//! ## Features
+//!
+//! - Smart text chunking that respects document structure (paragraphs, code blocks, headings)
+//! - LLM-powered context generation for improved semantic understanding
+//! - Parallel processing with rate limiting and concurrency controls
+//! - Flexible configuration for different content types and embedding strategies
+//! - Support for document metadata preservation throughout the processing pipeline
+//!
+//! ## Processing Pipeline
+//!
+//! 1. Chunk raw content into semantically coherent segments
+//! 2. Generate summaries and context for each chunk using LLMs
+//! 3. Create embeddings that combine both content and context
+//! 4. Preserve source information and metadata
+//!
+//! This module is critical for RAG quality as it determines how content is segmented
+//! and contextually enriched before being stored in the vector database.
 
 mod chunking;
 mod config;

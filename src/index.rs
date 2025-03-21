@@ -1,7 +1,33 @@
-//! Index manager module for RAG
+//! # Vector Database Index Module for RAG
 //!
-//! This module provides functionality for managing the index,
-//! including database operations and website metadata management.
+//! This module provides the vector database infrastructure for the RAG pipeline,
+//! responsible for storing and retrieving embedded content chunks and associated metadata.
+//! It serves as the persistent storage layer that bridges content processing and search.
+//!
+//! ## Key Components
+//!
+//! - `Database`: Main interface for interacting with the LibSQL vector database
+//! - `Website`: Represents metadata about an indexed website
+//! - `IndexedChunk`: Represents a processed and indexed content chunk with its embedding
+//!
+//! ## Features
+//!
+//! - LibSQL-powered vector database with vector search capabilities
+//! - Schema management for websites and chunks
+//! - Transactional operations for data integrity
+//! - Efficient embedding storage and retrieval
+//! - Website and content metadata management
+//! - Batch operations for indexing and updating content
+//! - Reembedding utilities for updating vector representations
+//!
+//! ## Storage Model
+//!
+//! The module implements a two-level storage model:
+//! 1. Websites: Store metadata about content sources
+//! 2. Chunks: Store individual content segments with their embeddings and contextual information
+//!
+//! This design enables efficient vector search across content while maintaining
+//! source attribution and metadata for retrieved results.
 
 mod database;
 pub mod error;
