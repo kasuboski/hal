@@ -17,7 +17,7 @@ fn get_resource() -> Resource {
         .clone()
 }
 
-fn init_logs() -> SdkLoggerProvider {
+fn _init_logs() -> SdkLoggerProvider {
     let exporter = LogExporter::builder()
         .with_http()
         .build()
