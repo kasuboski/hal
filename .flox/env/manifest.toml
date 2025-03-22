@@ -39,6 +39,7 @@ clang.pkg-path = "clang"
 clang.systems = ["aarch64-darwin"]
 
 cargo-nextest.pkg-path = "cargo-nextest"
+nodejs.pkg-path = "nodejs"
 
 
 ## Environment Variables ---------------------------------------------

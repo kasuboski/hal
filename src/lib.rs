@@ -57,6 +57,7 @@
 
 mod error;
 mod markdown;
+pub mod mcp;
 pub mod model;
 
 // RAG feature modules
