@@ -1,10 +1,29 @@
-use std::collections::{HashMap, HashSet};
+//! Permission management for the MCP server
+//!
+//! This module implements the session-based permission system that tracks which
+//! directories have read/write permissions and which shell commands are allowed.
+//! It provides:
+//!
+//! - A thread-safe permission structure that persists throughout the session
+//! - Functions to check if operations are allowed
+//! - Methods to grant new permissions
+//! - Path validation to prevent access to sensitive system directories
+
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Session permissions structure to track allowed directories and commands
+///
+/// This structure maintains three sets of permissions:
+/// - Directories with read permission
+/// - Directories with write permission
+/// - Allowed shell commands (simple allowlist)
+///
+/// The permission state is maintained throughout the session, so permissions
+/// only need to be granted once for each directory or command.
 #[derive(Debug, Clone)]
 pub struct SessionPermissions {
     /// Directories with read permission

@@ -1,9 +1,19 @@
-use std::path::{Path, PathBuf};
-use std::io::Error as IoError;
+//! File operation utilities for the MCP server
+//!
+//! This module implements file operations with permission checks:
+//! - Reading file contents with optional line ranges
+//! - Searching files for patterns or regular expressions
+//! - Making precise string replacements in files
+//! - Writing or appending content to files
+//!
+//! Each operation checks permissions and validates paths before proceeding,
+//! ensuring security and proper error handling.
+
+use std::path::Path;
 use tokio::fs;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use regex::Regex;
-use tracing::{info, warn};
+use tracing::info;
 
 use super::permissions::{PermissionsRef, basic_path_validation};
 

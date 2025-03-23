@@ -1,7 +1,19 @@
+//! Shell command utilities for the MCP server
+//!
+//! This module provides secure shell command execution with permission checks:
+//! - Command execution with stdout/stderr capture
+//! - Command validation to prevent shell injection
+//! - Permission checking against an allowlist
+//!
+//! The implementation focuses on security by:
+//! - Validating that commands don't contain shell metacharacters
+//! - Checking permissions against an allowlist
+//! - Supporting a working directory specification
+//! - Providing clear error messages for failures
+
 use std::path::Path;
-use std::process::Command;
 use tokio::process::Command as TokioCommand;
-use tracing::{info, warn};
+use tracing::info;
 
 use super::permissions::PermissionsRef;
 

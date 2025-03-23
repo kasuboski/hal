@@ -1,170 +1,67 @@
-use std::collections::HashMap;
+//! Model Context Protocol (MCP) server implementation
+//! 
+//! This module provides a secure MCP server that offers file and shell operation capabilities.
+//! It implements:
+//! 
+//! - Session-based permission system to maintain permissions throughout user sessions
+//! - File operations: view, search, edit, and write files with proper permission checks
+//! - Shell operations: execute commands with validation and security checks
+//! - Permission management: request and track permissions for directories and commands
+//!
+//! The implementation balances security with usability by requiring explicit user permission
+//! grants while maintaining those permissions throughout the session.
+
+mod file_utils;
+mod permissions;
+mod shell_utils;
+mod tools;
+
+pub use permissions::{create_permissions, PermissionsRef, SessionPermissions};
+pub use tools::register_tools;
 
 use mcpr::{
     error::MCPError,
-    schema::ToolInputSchema,
     server::{Server, ServerConfig},
     transport::stdio::StdioTransport,
-    Tool,
 };
-use serde_json::{json, Value};
 use tracing::{info, instrument};
 
+/// Run the MCP server with the given configuration
+///
+/// This function initializes and starts the MCP server with the provided name and version,
+/// setting up all necessary tools and permission management. It:
+///
+/// 1. Creates a shared permissions object to track allowed directories and commands
+/// 2. Configures the server with the provided name and version
+/// 3. Registers all tool handlers for file and shell operations
+/// 4. Starts the server and begins listening for tool invocations
+///
+/// # Arguments
+///
+/// * `name` - The name of the server
+/// * `version` - The version string of the server
+/// * `transport` - The transport mechanism for communication (StdioTransport)
+///
+/// # Returns
+///
+/// * `Result<(), MCPError>` - Ok on successful run, or an MCPError if something fails
 #[instrument(skip(transport))]
 pub async fn run(name: String, version: String, transport: StdioTransport) -> Result<(), MCPError> {
-    // Create an echo tool
-    let echo_tool = Tool {
-        name: "echo".to_string(),
-        description: Some("Echoes back the input".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "message".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The message to echo"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["message".to_string()]),
-        },
-    };
+    info!("Starting HAL MCP server: {} v{}", name, version);
 
-    // Create a hello tool
-    let hello_tool = Tool {
-        name: "hello".to_string(),
-        description: Some("Says hello to someone".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "name".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The name to greet"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["name".to_string()]),
-        },
-    };
-
-    // Create a search tool
-    let search_tool = Tool {
-        name: "search".to_string(),
-        description: Some("Search previously indexed content".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "query".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The search query"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["query".to_string()]),
-        },
-    };
+    // Create shared permissions
+    let permissions = create_permissions();
 
     // Configure the server
-    let server_config = ServerConfig::new()
+    let mut server_config = ServerConfig::new()
         .with_name(name.as_str())
-        .with_version(version.as_str())
-        .with_tool(echo_tool)
-        .with_tool(hello_tool)
-        .with_tool(search_tool);
+        .with_version(version.as_str());
 
     // Create the server
     let mut server = Server::new(server_config);
 
-    // Register tool handlers
-    server.register_tool_handler("echo", |params: serde_json::Value| async move {
-        let message = params
-            .get("message")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| MCPError::Protocol("Missing message parameter".to_string()))?;
-
-        info!("Echo request: {}", message);
-
-        Ok(json!({
-            "result": message
-        }))
-    })?;
-
-    server.register_tool_handler("hello", |params: Value| async move {
-        let name = params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| MCPError::Protocol("Missing name parameter".to_string()))?;
-
-        info!("Hello request for name: {}", name);
-
-        Ok(json!({
-            "result": format!("Hello, {}!", name)
-        }))
-    })?;
-
-    // Register search handler that uses the HAL search functionality
-    server.register_tool_handler("search", |params: Value| async move {
-        let query = params
-            .get("query")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| MCPError::Protocol("Missing query parameter".to_string()))?;
-
-        info!("Search request: {}", query);
-
-        // Create database connection
-        let db = match crate::index::Database::new_local_libsql().await {
-            Ok(db) => db,
-            Err(e) => {
-                return Err(MCPError::Protocol(format!(
-                    "Failed to connect to database: {}",
-                    e
-                )))
-            }
-        };
-
-        let client = crate::model::Client::new_gemini_free_from_env();
-
-        // Create search options
-        let options = crate::search::SearchOptions {
-            limit: 5,
-            source_filter: None,
-            date_range: None,
-        };
-
-        // Search the index
-        let results =
-            match crate::search::search_index_with_client(&db, &client, query, options).await {
-                Ok(results) => results,
-                Err(e) => return Err(MCPError::Protocol(format!("Search failed: {}", e))),
-            };
-
-        // Format results
-        let formatted_results = results
-            .iter()
-            .map(|r| {
-                json!({
-                    "text": r.text,
-                    "url": r.url,
-                    "context": r.context
-                })
-            })
-            .collect::<Vec<_>>();
-
-        Ok(json!({
-            "results": formatted_results
-        }))
-    })?;
+    // Register all tool handlers and add tools to config
+    register_tools(&mut server.config, &mut server, permissions.clone())?;
 
     // Start the server
     info!("Server listening for tool invocations...");
