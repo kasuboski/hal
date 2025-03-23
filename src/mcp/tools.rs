@@ -12,13 +12,7 @@
 //! processes the inputs, performs permission checks, and executes the requested
 //! operation.
 
-use mcpr::{
-    error::MCPError,
-    schema::ToolInputSchema,
-    server::Server,
-    transport::Transport,
-    Tool,
-};
+use mcpr::{error::MCPError, schema::ToolInputSchema, server::Server, transport::Transport, Tool};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -256,48 +250,6 @@ pub fn tools() -> Vec<Tool> {
         },
     });
 
-    // Echo tool
-    tools.push(Tool {
-        name: "echo".to_string(),
-        description: Some("Echoes back the input".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "message".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The message to echo"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["message".to_string()]),
-        },
-    });
-
-    // Hello tool
-    tools.push(Tool {
-        name: "hello".to_string(),
-        description: Some("Says hello to someone".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "name".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The name to greet"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["name".to_string()]),
-        },
-    });
-
     // Search tool
     tools.push(Tool {
         name: "search".to_string(),
@@ -339,8 +291,6 @@ pub fn tools() -> Vec<Tool> {
 ///    - `execute_shell_command`: Run commands and return stdout/stderr results
 ///
 /// 4. Standard HAL tools:
-///    - `echo`: Echo back a message
-///    - `hello`: Say hello to a name
 ///    - `search`: Search previously indexed content
 ///
 /// # Arguments
