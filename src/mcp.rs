@@ -1,8 +1,8 @@
 //! Model Context Protocol (MCP) server implementation
-//! 
+//!
 //! This module provides a secure MCP server that offers file and shell operation capabilities.
 //! It implements:
-//! 
+//!
 //! - Session-based permission system to maintain permissions throughout user sessions
 //! - File operations: view, search, edit, and write files with proper permission checks
 //! - Shell operations: execute commands with validation and security checks
@@ -17,7 +17,7 @@ mod shell_utils;
 mod tools;
 
 pub use permissions::{create_permissions, PermissionsRef, SessionPermissions};
-pub use tools::register_tools;
+pub use tools::{register_tools, tools};
 
 use mcpr::{
     error::MCPError,
@@ -57,11 +57,13 @@ pub async fn run(name: String, version: String, transport: StdioTransport) -> Re
         .with_name(name.as_str())
         .with_version(version.as_str());
 
+    server_config.tools = tools();
+
     // Create the server
     let mut server = Server::new(server_config);
 
     // Register all tool handlers and add tools to config
-    register_tools(&mut server.config, &mut server, permissions.clone())?;
+    register_tools(&mut server, permissions.clone())?;
 
     // Start the server
     info!("Server listening for tool invocations...");

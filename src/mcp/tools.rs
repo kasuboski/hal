@@ -15,7 +15,7 @@
 use mcpr::{
     error::MCPError,
     schema::ToolInputSchema,
-    server::{Server, ServerConfig},
+    server::Server,
     transport::Transport,
     Tool,
 };
@@ -38,11 +38,13 @@ use super::shell_utils;
 /// * `Vec<Tool>` - List of all supported tools
 pub fn tools() -> Vec<Tool> {
     let mut tools = Vec::new();
-    
+
     // Permission request tool
     tools.push(Tool {
         name: "request_permission".to_string(),
-        description: Some("Request permission to access a directory or perform an operation".to_string()),
+        description: Some(
+            "Request permission to access a directory or perform an operation".to_string(),
+        ),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -69,7 +71,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["operation".to_string(), "path".to_string()]),
         },
     });
-    
+
     // Show file tool
     tools.push(Tool {
         name: "show_file".to_string(),
@@ -106,7 +108,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["path".to_string()]),
         },
     });
-    
+
     // Search in file tool
     tools.push(Tool {
         name: "search_in_file".to_string(),
@@ -144,7 +146,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["path".to_string(), "pattern".to_string()]),
         },
     });
-    
+
     // Edit file tool
     tools.push(Tool {
         name: "edit_file".to_string(),
@@ -185,7 +187,7 @@ pub fn tools() -> Vec<Tool> {
             ]),
         },
     });
-    
+
     // Write file tool
     tools.push(Tool {
         name: "write_file".to_string(),
@@ -223,7 +225,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["path".to_string(), "content".to_string()]),
         },
     });
-    
+
     // Execute shell command tool
     tools.push(Tool {
         name: "execute_shell_command".to_string(),
@@ -253,7 +255,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["command".to_string()]),
         },
     });
-    
+
     // Echo tool
     tools.push(Tool {
         name: "echo".to_string(),
@@ -274,7 +276,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["message".to_string()]),
         },
     });
-    
+
     // Hello tool
     tools.push(Tool {
         name: "hello".to_string(),
@@ -295,7 +297,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["name".to_string()]),
         },
     });
-    
+
     // Search tool
     tools.push(Tool {
         name: "search".to_string(),
@@ -316,7 +318,7 @@ pub fn tools() -> Vec<Tool> {
             required: Some(vec!["query".to_string()]),
         },
     });
-    
+
     tools
 }
 
@@ -349,7 +351,7 @@ pub fn tools() -> Vec<Tool> {
 /// # Returns
 ///
 /// * `Result<(), MCPError>` - Ok on success, or an MCPError if registration fails
-pub fn register_tools<T: Transport + Send + Sync + Clone>(
+pub fn register_tools<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
@@ -366,51 +368,16 @@ pub fn register_tools<T: Transport + Send + Sync + Clone>(
     register_execute_shell_command_tool(server, permissions.clone())?;
 
     // Register the stock HAL tools as well
-    register_hal_stock_tools(server)?;
+    register_hal_search_tool(server)?;
 
     Ok(())
 }
 
 /// Register the request_permission tool
-fn register_request_permission_tool<T: Transport + Send + Sync + Clone>(
+fn register_request_permission_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "request_permission".to_string(),
-        description: Some(
-            "Request permission to access a directory or perform an operation".to_string(),
-        ),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "operation".to_string(),
-                        json!({
-                            "type": "string",
-                            "enum": ["read", "write", "execute"],
-                            "description": "Type of permission to request"
-                        }),
-                    ),
-                    (
-                        "path".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Path to the directory or file"
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["operation".to_string(), "path".to_string()]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("request_permission", move |params: Value| {
         let permissions = permissions.clone();
@@ -485,49 +452,10 @@ fn register_request_permission_tool<T: Transport + Send + Sync + Clone>(
 }
 
 /// Register the show_file tool
-fn register_show_file_tool<T: Transport + Send + Sync + Clone>(
+fn register_show_file_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "show_file".to_string(),
-        description: Some("View file contents with optional line range".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "path".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Path to the file"
-                        }),
-                    ),
-                    (
-                        "start_line".to_string(),
-                        json!({
-                            "type": "integer",
-                            "description": "Starting line number (1-based, optional)"
-                        }),
-                    ),
-                    (
-                        "end_line".to_string(),
-                        json!({
-                            "type": "integer",
-                            "description": "Ending line number (inclusive, optional)"
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["path".to_string()]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("show_file", move |params: Value| {
         let permissions = permissions.clone();
@@ -569,50 +497,10 @@ fn register_show_file_tool<T: Transport + Send + Sync + Clone>(
 }
 
 /// Register the search_in_file tool
-fn register_search_in_file_tool<T: Transport + Send + Sync + Clone>(
+fn register_search_in_file_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "search_in_file".to_string(),
-        description: Some("Search for patterns in files using regular expressions".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "path".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Path to the file"
-                        }),
-                    ),
-                    (
-                        "pattern".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Search pattern (string or regex)"
-                        }),
-                    ),
-                    (
-                        "is_regex".to_string(),
-                        json!({
-                            "type": "boolean",
-                            "description": "Whether to treat pattern as regex (default: false)",
-                            "default": false
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["path".to_string(), "pattern".to_string()]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("search_in_file", move |params: Value| {
         let permissions = permissions.clone();
@@ -657,53 +545,10 @@ fn register_search_in_file_tool<T: Transport + Send + Sync + Clone>(
 }
 
 /// Register the edit_file tool
-fn register_edit_file_tool<T: Transport + Send + Sync + Clone>(
+fn register_edit_file_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "edit_file".to_string(),
-        description: Some("Make precise changes to files with string replacements".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "path".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Path to the file"
-                        }),
-                    ),
-                    (
-                        "old_string".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Text to be replaced (must be unique in the file)"
-                        }),
-                    ),
-                    (
-                        "new_string".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Text to replace with"
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec![
-                "path".to_string(),
-                "old_string".to_string(),
-                "new_string".to_string(),
-            ]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("edit_file", move |params: Value| {
         let permissions = permissions.clone();
@@ -741,50 +586,10 @@ fn register_edit_file_tool<T: Transport + Send + Sync + Clone>(
 }
 
 /// Register the write_file tool
-fn register_write_file_tool<T: Transport + Send + Sync + Clone>(
+fn register_write_file_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "write_file".to_string(),
-        description: Some("Write or append content to files".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "path".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Path to the file"
-                        }),
-                    ),
-                    (
-                        "content".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Content to write to the file"
-                        }),
-                    ),
-                    (
-                        "append".to_string(),
-                        json!({
-                            "type": "boolean",
-                            "description": "Whether to append to the file instead of overwriting (default: false)",
-                            "default": false
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["path".to_string(), "content".to_string()]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("write_file", move |params: Value| {
         let permissions = permissions.clone();
@@ -828,42 +633,10 @@ fn register_write_file_tool<T: Transport + Send + Sync + Clone>(
 }
 
 /// Register the execute_shell_command tool
-fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone>(
+fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
     permissions: PermissionsRef,
 ) -> Result<(), MCPError> {
-    let tool = Tool {
-        name: "execute_shell_command".to_string(),
-        description: Some("Execute shell commands and get stdout/stderr results".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [
-                    (
-                        "command".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Command to execute"
-                        }),
-                    ),
-                    (
-                        "working_directory".to_string(),
-                        json!({
-                            "type": "string",
-                            "description": "Working directory for the command (optional)"
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["command".to_string()]),
-        },
-    };
-
-    // Register tool
-    server.register_tool(tool);
-
     // Register handler
     server.register_tool_handler("execute_shell_command", move |params: Value| {
         let permissions = permissions.clone();
@@ -900,107 +673,9 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone>(
     Ok(())
 }
 
-/// Register the stock HAL tools (echo, hello, search)
-fn register_hal_stock_tools<T: Transport + Send + Sync + Clone>(
-    config: &mut ServerConfig,
+fn register_hal_search_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
 ) -> Result<(), MCPError> {
-    // Create an echo tool
-    let echo_tool = Tool {
-        name: "echo".to_string(),
-        description: Some("Echoes back the input".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "message".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The message to echo"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["message".to_string()]),
-        },
-    };
-
-    // Create a hello tool
-    let hello_tool = Tool {
-        name: "hello".to_string(),
-        description: Some("Says hello to someone".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "name".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The name to greet"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["name".to_string()]),
-        },
-    };
-
-    // Create a search tool
-    let search_tool = Tool {
-        name: "search".to_string(),
-        description: Some("Search previously indexed content".to_string()),
-        input_schema: ToolInputSchema {
-            r#type: "object".to_string(),
-            properties: Some(
-                [(
-                    "query".to_string(),
-                    json!({
-                        "type": "string",
-                        "description": "The search query"
-                    }),
-                )]
-                .into_iter()
-                .collect::<HashMap<_, _>>(),
-            ),
-            required: Some(vec!["query".to_string()]),
-        },
-    };
-
-    // Register tools
-    config.with_tool(echo_tool);
-    config.with_tool(hello_tool);
-    config.with_tool(search_tool);
-
-    // Register echo handler
-    server.register_tool_handler("echo", |params: serde_json::Value| async move {
-        let message = params
-            .get("message")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| MCPError::Protocol("Missing message parameter".to_string()))?;
-
-        info!("Echo request: {}", message);
-
-        Ok(json!({
-            "result": message
-        }))
-    })?;
-
-    // Register hello handler
-    server.register_tool_handler("hello", |params: Value| async move {
-        let name = params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| MCPError::Protocol("Missing name parameter".to_string()))?;
-
-        info!("Hello request for name: {}", name);
-
-        Ok(json!({
-            "result": format!("Hello, {}!", name)
-        }))
-    })?;
-
     // Register search handler that uses the HAL search functionality
     server.register_tool_handler("search", |params: Value| async move {
         let query = params

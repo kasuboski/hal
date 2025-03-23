@@ -9,13 +9,12 @@
 //! Each operation checks permissions and validates paths before proceeding,
 //! ensuring security and proper error handling.
 
+use regex::Regex;
 use std::path::Path;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use regex::Regex;
-use tracing::info;
 
-use super::permissions::{PermissionsRef, basic_path_validation};
+use super::permissions::{basic_path_validation, PermissionsRef};
 
 /// Show file contents with optional line range
 pub async fn show_file(
@@ -26,7 +25,7 @@ pub async fn show_file(
 ) -> Result<String, String> {
     // Validate path
     basic_path_validation(path)?;
-    
+
     // Check permissions
     let perms = permissions.lock().await;
     if !perms.can_read(path) {
@@ -35,22 +34,22 @@ pub async fn show_file(
             path.display()
         ));
     }
-    
+
     // Read file
     let content = fs::read_to_string(path)
         .await
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
+
     // Apply line range if specified
     if start_line.is_some() || end_line.is_some() {
         let lines: Vec<&str> = content.lines().collect();
         let start = start_line.unwrap_or(1).saturating_sub(1);
         let end = end_line.unwrap_or(lines.len()).min(lines.len());
-        
+
         if start >= end || start >= lines.len() {
             return Err(format!("Invalid line range: {} to {}", start + 1, end));
         }
-        
+
         Ok(lines[start..end].join("\n"))
     } else {
         Ok(content)
@@ -59,14 +58,14 @@ pub async fn show_file(
 
 /// Search for a pattern in a file
 pub async fn search_in_file(
-    path: &Path, 
+    path: &Path,
     permissions: &PermissionsRef,
-    pattern: &str, 
-    is_regex: bool
+    pattern: &str,
+    is_regex: bool,
 ) -> Result<Vec<(usize, String)>, String> {
     // Validate path
     basic_path_validation(path)?;
-    
+
     // Check permissions
     let perms = permissions.lock().await;
     if !perms.can_read(path) {
@@ -75,20 +74,19 @@ pub async fn search_in_file(
             path.display()
         ));
     }
-    
+
     // Read file
     let content = fs::read_to_string(path)
         .await
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
+
     let lines: Vec<&str> = content.lines().collect();
     let mut matches = Vec::new();
-    
+
     if is_regex {
         // Compile regex pattern
-        let regex = Regex::new(pattern)
-            .map_err(|e| format!("Invalid regex pattern: {}", e))?;
-        
+        let regex = Regex::new(pattern).map_err(|e| format!("Invalid regex pattern: {}", e))?;
+
         // Search for matches
         for (i, line) in lines.iter().enumerate() {
             if regex.is_match(line) {
@@ -103,7 +101,7 @@ pub async fn search_in_file(
             }
         }
     }
-    
+
     Ok(matches)
 }
 
@@ -112,11 +110,11 @@ pub async fn edit_file(
     path: &Path,
     permissions: &PermissionsRef,
     old_string: &str,
-    new_string: &str
+    new_string: &str,
 ) -> Result<(), String> {
     // Validate path
     basic_path_validation(path)?;
-    
+
     // Check permissions
     let perms = permissions.lock().await;
     if !perms.can_write(path) {
@@ -125,12 +123,12 @@ pub async fn edit_file(
             path.display()
         ));
     }
-    
+
     // Read file
     let content = fs::read_to_string(path)
         .await
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
+
     // Count occurrences of old_string
     let occurrences = content.matches(old_string).count();
     if occurrences == 0 {
@@ -138,13 +136,13 @@ pub async fn edit_file(
     } else if occurrences > 1 {
         return Err(format!("Found {} occurrences of the string in file. Please provide more context to make the match unique.", occurrences));
     }
-    
+
     // Replace string and write back to file
     let new_content = content.replace(old_string, new_string);
     fs::write(path, new_content)
         .await
         .map_err(|e| format!("Failed to write file: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -153,15 +151,16 @@ pub async fn write_file(
     path: &Path,
     permissions: &PermissionsRef,
     content: &str,
-    append: bool
+    append: bool,
 ) -> Result<(), String> {
     // Validate path
     basic_path_validation(path)?;
-    
+
     // Check permissions (parent directory needs write permission)
-    let parent_dir = path.parent()
+    let parent_dir = path
+        .parent()
         .ok_or_else(|| "Invalid path: no parent directory".to_string())?;
-    
+
     let perms = permissions.lock().await;
     if !perms.can_write(parent_dir) {
         return Err(format!(
@@ -169,12 +168,15 @@ pub async fn write_file(
             parent_dir.display()
         ));
     }
-    
+
     // Make sure parent directory exists
     if !parent_dir.exists() {
-        return Err(format!("Directory does not exist: {}", parent_dir.display()));
+        return Err(format!(
+            "Directory does not exist: {}",
+            parent_dir.display()
+        ));
     }
-    
+
     // Write or append to file
     if append {
         // Create file if it doesn't exist, or append to it
@@ -184,7 +186,7 @@ pub async fn write_file(
             .open(path)
             .await
             .map_err(|e| format!("Failed to open file for appending: {}", e))?;
-        
+
         file.write_all(content.as_bytes())
             .await
             .map_err(|e| format!("Failed to append to file: {}", e))?;
@@ -194,6 +196,6 @@ pub async fn write_file(
             .await
             .map_err(|e| format!("Failed to write file: {}", e))?;
     }
-    
+
     Ok(())
 }

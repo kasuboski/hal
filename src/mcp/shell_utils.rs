@@ -13,7 +13,6 @@
 
 use std::path::Path;
 use tokio::process::Command as TokioCommand;
-use tracing::info;
 
 use super::permissions::PermissionsRef;
 
@@ -38,16 +37,16 @@ pub async fn execute_command(
             command_str
         ));
     }
-    
+
     // Parse command and arguments
     let mut parts = command_str.split_whitespace();
     let program = parts.next().ok_or_else(|| "Empty command".to_string())?;
     let args: Vec<&str> = parts.collect();
-    
+
     // Create command
     let mut command = TokioCommand::new(program);
     command.args(&args);
-    
+
     // Set working directory if specified
     if let Some(dir) = working_dir {
         // Verify read permission for working directory
@@ -59,18 +58,18 @@ pub async fn execute_command(
         }
         command.current_dir(dir);
     }
-    
+
     // Execute command
     let output = command
         .output()
         .await
         .map_err(|e| format!("Failed to execute command: {}", e))?;
-    
+
     // Parse output
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let exit_code = output.status.code().unwrap_or(-1);
-    
+
     Ok(CommandResult {
         stdout,
         stderr,
@@ -81,8 +80,10 @@ pub async fn execute_command(
 /// Validate that a command is safe to execute (no pipes, redirects, etc.)
 pub fn validate_command(command: &str) -> Result<(), String> {
     // Check for shell metacharacters
-    let dangerous_chars = [';', '&', '|', '>', '<', '`', '$', '(', ')', '{', '}', '[', ']', '\\', '\'', '\"'];
-    
+    let dangerous_chars = [
+        ';', '&', '|', '>', '<', '`', '$', '(', ')', '{', '}', '[', ']', '\\', '\'', '\"',
+    ];
+
     for c in dangerous_chars.iter() {
         if command.contains(*c) {
             return Err(format!(
@@ -91,6 +92,6 @@ pub fn validate_command(command: &str) -> Result<(), String> {
             ));
         }
     }
-    
+
     Ok(())
 }
