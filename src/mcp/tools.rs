@@ -20,7 +20,7 @@ use tracing::info;
 
 use super::file_utils;
 use super::permissions::PermissionsRef;
-use super::shell_utils;
+use super::State;
 
 /// Get all tools available
 ///
@@ -303,19 +303,19 @@ pub fn tools() -> Vec<Tool> {
 /// * `Result<(), MCPError>` - Ok on success, or an MCPError if registration fails
 pub fn register_tools<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
-    permissions: PermissionsRef,
+    state: State,
 ) -> Result<(), MCPError> {
     // Register permission request tool
-    register_request_permission_tool(server, permissions.clone())?;
+    register_request_permission_tool(server, state.permissions())?;
 
     // Register file operation tools
-    register_show_file_tool(server, permissions.clone())?;
-    register_search_in_file_tool(server, permissions.clone())?;
-    register_edit_file_tool(server, permissions.clone())?;
-    register_write_file_tool(server, permissions.clone())?;
+    register_show_file_tool(server, state.permissions())?;
+    register_search_in_file_tool(server, state.permissions())?;
+    register_edit_file_tool(server, state.permissions())?;
+    register_write_file_tool(server, state.permissions())?;
 
     // Register shell command tool
-    register_execute_shell_command_tool(server, permissions.clone())?;
+    register_execute_shell_command_tool(server, state)?;
 
     // Register the stock HAL tools as well
     register_hal_search_tool(server)?;
@@ -585,11 +585,11 @@ fn register_write_file_tool<T: Transport + Send + Sync + Clone + 'static>(
 /// Register the execute_shell_command tool
 fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'static>(
     server: &mut Server<T>,
-    permissions: PermissionsRef,
+    state: State,
 ) -> Result<(), MCPError> {
     // Register handler
     server.register_tool_handler("execute_shell_command", move |params: Value| {
-        let permissions = permissions.clone();
+        let executor = state.executor();
         async move {
             let command = params
                 .get("command")
@@ -602,11 +602,15 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'sta
                 .map(PathBuf::from);
 
             // Validate command for safety
-            shell_utils::validate_command(command).map_err(|e| MCPError::Protocol(e))?;
+            // We still need to validate the command before execution
+            let validate_fn = &super::shell_utils::validate_command;
+            validate_fn(command).map_err(|e| MCPError::Protocol(e))?;
 
             // Execute command
-            let working_dir_ref = working_dir.as_ref().map(|d| d.as_path());
-            match shell_utils::execute_command(command, &permissions, working_dir_ref).await {
+            match executor
+                .execute(command.to_string(), working_dir.as_deref())
+                .await
+            {
                 Ok(result) => Ok(json!({
                     "stdout": result.stdout,
                     "stderr": result.stderr,
@@ -615,7 +619,7 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'sta
                     "working_directory": working_dir,
                     "success": result.exit_code == 0
                 })),
-                Err(e) => Err(MCPError::Protocol(e)),
+                Err(e) => Err(MCPError::Protocol(e.to_string())),
             }
         }
     })?;

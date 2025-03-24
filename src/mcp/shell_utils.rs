@@ -11,76 +11,108 @@
 //! - Supporting a working directory specification
 //! - Providing clear error messages for failures
 //! - Detecting and using the user's default shell
+//! - Reusing the shell between command executions for efficiency
 
 use std::path::Path;
+use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
+use tokio::sync::Mutex;
 
+use super::executor::{CommandResult, Executor};
 use super::permissions::PermissionsRef;
 
-/// Result structure for shell command execution
-pub struct CommandResult {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
+/// ShellExecutor implements the Executor trait
+/// It reuses the shell between command executions
+pub struct ShellExecutor {
+    permissions: PermissionsRef,
+    shell_path: Arc<Mutex<Option<String>>>,
 }
 
-/// Execute a shell command with permission validation using the user's default shell
-pub async fn execute_command(
-    command_str: &str,
-    permissions: &PermissionsRef,
-    working_dir: Option<&Path>,
-) -> Result<CommandResult, String> {
-    // Check if command is allowed
-    let perms = permissions.lock().await;
-    if !perms.can_execute_command(command_str) {
-        return Err(format!(
-            "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
-            command_str
-        ));
-    }
-
-    // Get the user's default shell
-    let shell = detect_default_shell().await.map_err(|e| e.to_string())?;
-
-    // Create command using the detected shell
-    let mut command = TokioCommand::new(&shell);
-
-    command.args(&["-c", command_str]);
-
-    // Set working directory if specified
-    if let Some(dir) = working_dir {
-        // Verify read permission for working directory
-        if !perms.can_read(dir) {
-            return Err(format!(
-                "Read permission not granted for directory: {}. Request permission first.",
-                dir.display()
-            ));
+impl ShellExecutor {
+    /// Create a new ShellExecutor
+    pub fn new(permissions: PermissionsRef) -> Self {
+        ShellExecutor {
+            permissions,
+            shell_path: Arc::new(Mutex::new(None)),
         }
-        command.current_dir(dir);
     }
 
-    // Execute command
-    let output = command
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
+    /// Initialize the shell path if not already done
+    async fn ensure_shell_initialized(&self) -> Result<String, Box<dyn std::error::Error>> {
+        let mut shell_path_guard = self.shell_path.lock().await;
 
-    // Parse output
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let exit_code = output.status.code().unwrap_or(-1);
+        if shell_path_guard.is_none() {
+            // Initialize the shell path if it hasn't been done yet
+            let detected_shell = detect_default_shell().await?;
+            *shell_path_guard = Some(detected_shell);
+        }
 
-    Ok(CommandResult {
-        stdout,
-        stderr,
-        exit_code,
-    })
+        Ok(shell_path_guard.as_ref().unwrap().clone())
+    }
+}
+
+#[async_trait::async_trait]
+impl Executor for ShellExecutor {
+    async fn execute(
+        &self,
+        command: String,
+        working_dir: Option<&Path>,
+    ) -> Result<CommandResult, Box<dyn std::error::Error>> {
+        let command_str = command;
+
+        // Check if command is allowed
+        let perms = self.permissions.lock().await;
+        if !perms.can_execute_command(&command_str) {
+            return Err(format!(
+                "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
+                command_str
+            )
+            .into());
+        }
+
+        // Ensure we have initialized the shell
+        let shell = self.ensure_shell_initialized().await?;
+
+        // Create command using the detected shell
+        let mut command = TokioCommand::new(&shell);
+        command.args(&["-c", &command_str]);
+
+        // Set working directory if specified
+        if let Some(dir) = working_dir {
+            // Verify read permission for working directory
+            if !perms.can_read(dir) {
+                return Err(format!(
+                    "Read permission not granted for directory: {}. Request permission first.",
+                    dir.display()
+                )
+                .into());
+            }
+            command.current_dir(dir);
+        }
+
+        // Execute command
+        let output = command
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+        // Parse output
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
+
+        Ok(CommandResult {
+            stdout,
+            stderr,
+            exit_code,
+        })
+    }
 }
 
 /// Detect the user's default shell based on the operating system
-async fn detect_default_shell() -> io::Result<String> {
+async fn detect_default_shell() -> Result<String, Box<dyn std::error::Error>> {
     // Platform-specific detection methods
     #[cfg(target_os = "macos")]
     {
@@ -102,10 +134,10 @@ async fn detect_default_shell() -> io::Result<String> {
 
     #[allow(unreachable_code)]
     // General fallback
-    Err(io::Error::new(
+    Err(Box::new(io::Error::new(
         io::ErrorKind::NotFound,
         "Could not detect default shell",
-    ))
+    )))
 }
 
 /// Get default shell on macOS using dscl

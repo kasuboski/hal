@@ -11,12 +11,16 @@
 //! The implementation balances security with usability by requiring explicit user permission
 //! grants while maintaining those permissions throughout the session.
 
+mod executor;
 mod file_utils;
 mod permissions;
 mod shell_utils;
 mod tools;
 
+use executor::Executor;
 pub use permissions::{create_permissions, PermissionsRef, SessionPermissions};
+use shell_utils::ShellExecutor;
+use std::sync::Arc;
 pub use tools::{register_tools, tools};
 
 use mcpr::{
@@ -49,8 +53,8 @@ use tracing::{info, instrument};
 pub async fn run(name: String, version: String, transport: StdioTransport) -> Result<(), MCPError> {
     info!("Starting HAL MCP server: {} v{}", name, version);
 
-    // Create shared permissions
-    let permissions = create_permissions();
+    // Create state containing permissions and executor
+    let state = State::new();
 
     // Configure the server
     let mut server_config = ServerConfig::new()
@@ -63,9 +67,39 @@ pub async fn run(name: String, version: String, transport: StdioTransport) -> Re
     let mut server = Server::new(server_config);
 
     // Register all tool handlers and add tools to config
-    register_tools(&mut server, permissions.clone())?;
+    register_tools(&mut server, state)?;
 
     // Start the server
     info!("Server listening for tool invocations...");
     server.serve(transport).await
+}
+
+/// State for the MCP server
+pub struct State {
+    permissions: PermissionsRef,
+    executor: Arc<dyn Executor + Send + Sync>,
+}
+
+impl State {
+    /// Create a new state with the given permissions
+    pub fn new() -> Self {
+        let permissions = create_permissions();
+        // Create the shell executor
+        let executor = Arc::new(ShellExecutor::new(permissions.clone()));
+
+        State {
+            permissions,
+            executor,
+        }
+    }
+
+    /// Get a reference to the permissions
+    pub fn permissions(&self) -> PermissionsRef {
+        self.permissions.clone()
+    }
+
+    /// Get a reference to the executor
+    pub fn executor(&self) -> Arc<dyn Executor + Send + Sync> {
+        self.executor.clone()
+    }
 }
