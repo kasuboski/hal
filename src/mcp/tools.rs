@@ -37,7 +37,7 @@ pub fn tools() -> Vec<Tool> {
     tools.push(Tool {
         name: "request_permission".to_string(),
         description: Some(
-            "Request permission to access a directory or perform an operation".to_string(),
+            "Request permission before performing operations - use 'read' or 'write' for file access with directory path, or 'execute' with command name as path. Must be called before using other tools.".to_string(),
         ),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
@@ -55,7 +55,7 @@ pub fn tools() -> Vec<Tool> {
                         "path".to_string(),
                         json!({
                             "type": "string",
-                            "description": "Path to the directory or file"
+                            "description": "Path to the directory or file, or in the case of a command: the command to run"
                         }),
                     ),
                 ]
@@ -69,7 +69,7 @@ pub fn tools() -> Vec<Tool> {
     // Show file tool
     tools.push(Tool {
         name: "show_file".to_string(),
-        description: Some("View file contents with optional line range".to_string()),
+        description: Some("View file contents with optional line range - returns text content. Requires prior read permission via request_permission tool.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -106,7 +106,7 @@ pub fn tools() -> Vec<Tool> {
     // Search in file tool
     tools.push(Tool {
         name: "search_in_file".to_string(),
-        description: Some("Search for patterns in files using regular expressions".to_string()),
+        description: Some("Search for text patterns or regex in files - returns matching lines with line numbers. Set is_regex=true for regex mode. Requires read permission.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -144,7 +144,7 @@ pub fn tools() -> Vec<Tool> {
     // Edit file tool
     tools.push(Tool {
         name: "edit_file".to_string(),
-        description: Some("Make precise changes to files with string replacements".to_string()),
+        description: Some("Replace text in files - the old_string must match exactly once in the file. Requires write permission. Use search_in_file first to verify uniqueness.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -185,7 +185,7 @@ pub fn tools() -> Vec<Tool> {
     // Write file tool
     tools.push(Tool {
         name: "write_file".to_string(),
-        description: Some("Write or append content to files".to_string()),
+        description: Some("Create new files or update existing ones - use append=true to add to file instead of overwriting. Creates files if they don't exist. Requires write permission for the directory.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -223,7 +223,7 @@ pub fn tools() -> Vec<Tool> {
     // Execute shell command tool
     tools.push(Tool {
         name: "execute_shell_command".to_string(),
-        description: Some("Execute shell commands and get stdout/stderr results".to_string()),
+        description: Some("Run simple shell commands - returns stdout, stderr, and exit code. No pipes, redirects, or special characters allowed. Limited to safe commands. Requires execute permission first.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -253,7 +253,7 @@ pub fn tools() -> Vec<Tool> {
     // Search tool
     tools.push(Tool {
         name: "search".to_string(),
-        description: Some("Search previously indexed content".to_string()),
+        description: Some("Search indexed website content using semantic search - returns relevant text chunks with their sources. Used for retrieving information from previously crawled websites.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(

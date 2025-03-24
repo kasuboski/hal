@@ -28,10 +28,10 @@ use tracing::info;
 pub struct SessionPermissions {
     /// Directories with read permission
     read_allowed_dirs: HashSet<PathBuf>,
-    
+
     /// Directories with write permission
     write_allowed_dirs: HashSet<PathBuf>,
-    
+
     /// Allowed shell commands (simple allowlist)
     allowed_commands: HashSet<String>,
 }
@@ -49,24 +49,25 @@ impl SessionPermissions {
         allowed_commands.insert("wc".to_string());
         allowed_commands.insert("head".to_string());
         allowed_commands.insert("tail".to_string());
-        
+        allowed_commands.insert("which".to_string());
+
         Self {
             read_allowed_dirs: HashSet::new(),
             write_allowed_dirs: HashSet::new(),
             allowed_commands,
         }
     }
-    
+
     /// Check if read is allowed for a path
     pub fn can_read(&self, path: &Path) -> bool {
         self.has_permission(path, &self.read_allowed_dirs)
     }
-    
+
     /// Check if write is allowed for a path
     pub fn can_write(&self, path: &Path) -> bool {
         self.has_permission(path, &self.write_allowed_dirs)
     }
-    
+
     /// Check if a path is within any of the allowed directories
     fn has_permission(&self, path: &Path, allowed_dirs: &HashSet<PathBuf>) -> bool {
         // First try to canonicalize the path
@@ -78,9 +79,7 @@ impl SessionPermissions {
                 if let Some(parent) = path.parent() {
                     match parent.canonicalize() {
                         Ok(parent_path) => {
-                            return allowed_dirs.iter().any(|dir| {
-                                parent_path.starts_with(dir)
-                            });
+                            return allowed_dirs.iter().any(|dir| parent_path.starts_with(dir));
                         }
                         Err(_) => return false,
                     }
@@ -88,18 +87,20 @@ impl SessionPermissions {
                 return false;
             }
         };
-        
+
         // Check if path is within any allowed directory
-        allowed_dirs.iter().any(|dir| canonical_path.starts_with(dir))
+        allowed_dirs
+            .iter()
+            .any(|dir| canonical_path.starts_with(dir))
     }
-    
+
     /// Check if a shell command is allowed
     pub fn can_execute_command(&self, command: &str) -> bool {
         // Extract the program name (first word)
         let program = command.split_whitespace().next().unwrap_or("");
         self.allowed_commands.contains(program)
     }
-    
+
     /// Grant read permission for a directory
     pub fn allow_read(&mut self, dir: PathBuf) {
         info!("Granting read permission for directory: {}", dir.display());
@@ -111,7 +112,7 @@ impl SessionPermissions {
             self.read_allowed_dirs.insert(dir);
         }
     }
-    
+
     /// Grant write permission for a directory
     pub fn allow_write(&mut self, dir: PathBuf) {
         info!("Granting write permission for directory: {}", dir.display());
@@ -126,7 +127,7 @@ impl SessionPermissions {
             self.read_allowed_dirs.insert(dir);
         }
     }
-    
+
     /// Allow a new shell command
     pub fn allow_command(&mut self, command: String) {
         info!("Adding command to allowlist: {}", command);
@@ -146,19 +147,31 @@ pub fn create_permissions() -> PermissionsRef {
 pub fn basic_path_validation(path: &Path) -> Result<(), String> {
     // Check for obviously dangerous paths
     let dangerous_paths = [
-        "/etc", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
-        "/boot", "/lib", "/lib64", "/dev", "/proc", "/sys",
-        "/var/run", "/var/log", "/var/lib", "/var/tmp",
+        "/etc",
+        "/bin",
+        "/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/boot",
+        "/lib",
+        "/lib64",
+        "/dev",
+        "/proc",
+        "/sys",
+        "/var/run",
+        "/var/log",
+        "/var/lib",
+        "/var/tmp",
     ];
-    
+
     // Convert to absolute path if possible
     let path_to_check = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    
+
     for dangerous in dangerous_paths.iter() {
         if path_to_check.starts_with(dangerous) {
             return Err(format!("Cannot access system directory: {}", dangerous));
         }
     }
-    
+
     Ok(())
 }
