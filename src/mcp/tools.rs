@@ -346,7 +346,7 @@ fn register_request_permission_tool<T: Transport + Send + Sync + Clone + 'static
 
             // Basic validation
             super::permissions::basic_path_validation(&path_buf)
-                .map_err(|e| MCPError::Protocol(e))?;
+                .map_err(MCPError::Protocol)?;
 
             // Get parent directory to grant permission to
             let dir_path = if path_buf.is_dir() {
@@ -604,7 +604,7 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'sta
             // Validate command for safety
             // We still need to validate the command before execution
             let validate_fn = &super::shell_utils::validate_command;
-            validate_fn(command).map_err(|e| MCPError::Protocol(e))?;
+            validate_fn(command).map_err(MCPError::Protocol)?;
 
             // Execute command
             match executor

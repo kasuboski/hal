@@ -6,7 +6,7 @@ pub trait Executor {
         &self,
         command: String,
         working_dir: Option<&Path>,
-    ) -> Result<CommandResult, Box<dyn std::error::Error>>;
+    ) -> Result<CommandResult, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Result structure for shell command execution
