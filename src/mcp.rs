@@ -11,6 +11,7 @@
 //! The implementation balances security with usability by requiring explicit user permission
 //! grants while maintaining those permissions throughout the session.
 
+mod code;
 mod executor;
 mod file_utils;
 mod permissions;

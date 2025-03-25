@@ -339,6 +339,29 @@ pub fn tools() -> Vec<Tool> {
         },
     });
 
+    // Code Repo Overview
+    tools.push(Tool {
+        name: "code_repo_overview".to_string(),
+        description: Some("Get an overview of the code repository. Returns a list of files and their contents. This will return a large costly response.".to_string()),
+        input_schema: ToolInputSchema {
+            r#type: "object".to_string(),
+            properties: Some(
+                [
+                    (
+                        "path".to_string(),
+                        json!({
+                            "type": "string",
+                            "description": "Path to the directory"
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .collect::<HashMap<_, _>>(),
+            ),
+            required: Some(vec!["path".to_string()]),
+        },
+    });
+
     tools
 }
 
@@ -388,7 +411,10 @@ pub fn register_tools<T: Transport + Send + Sync + Clone + 'static>(
     register_directory_tree_tool(server, state.permissions())?;
 
     // Register shell command tool
-    register_execute_shell_command_tool(server, state)?;
+    register_execute_shell_command_tool(server, state.clone())?;
+
+    // Register code repo overview tool
+    register_code_repo_overview_tool(server, state.permissions())?;
 
     // Register the stock HAL tools as well
     register_hal_search_tool(server)?;
@@ -788,6 +814,72 @@ fn register_directory_tree_tool<T: Transport + Send + Sync + Clone + 'static>(
                     "message": format!("Successfully retrieved directory tree for: {}", path)
                 })),
                 Err(e) => Err(MCPError::Protocol(e)),
+            }
+        }
+    })?;
+
+    Ok(())
+}
+
+/// Register the code_repo_overview tool
+fn register_code_repo_overview_tool<T: Transport + Send + Sync + Clone + 'static>(
+    server: &mut Server<T>,
+    permissions: PermissionsRef,
+) -> Result<(), MCPError> {
+    // Register handler
+    server.register_tool_handler("code_repo_overview", move |params: Value| {
+        let permissions = permissions.clone();
+        async move {
+            let path = params
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| MCPError::Protocol("Missing path parameter".to_string()))?;
+
+            let path_buf = PathBuf::from(path);
+
+            // Check read permission
+            let perms = permissions.lock().await;
+            if !perms.can_read(&path_buf) {
+                return Err(MCPError::Protocol(format!(
+                    "No read permission for directory: {}",
+                    path_buf.display()
+                )));
+            }
+            // Release the lock
+            drop(perms);
+
+            // Create YekConfig with tokens mode
+            let mut config = yek::config::YekConfig::default();
+            let ignore = yek::defaults::DEFAULT_IGNORE_PATTERNS
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+            config.ignore_patterns = ignore;
+            config.input_paths = vec![path.to_string()];
+            config.token_mode = true;
+            config.max_size = "10K".to_string();
+            config.tokens = "10000".to_string();
+
+            config
+                .validate()
+                .map_err(|e| MCPError::Protocol(format!("failed to validate config: {e}")))?;
+
+            // Use spawn_blocking since overview is synchronous
+            let config_clone = config.clone();
+            let result = tokio::task::spawn_blocking(move || super::code::overview(&config_clone))
+                .await
+                .map_err(|e| MCPError::Protocol(format!("Failed to run overview: {}", e)))?;
+
+            match result {
+                Ok((overview, files)) => Ok(json!({
+                    "overview": overview,
+                    "files": files.len(),
+                    "path": path
+                })),
+                Err(e) => Err(MCPError::Protocol(format!(
+                    "Failed to generate overview: {}",
+                    e
+                ))),
             }
         }
     })?;

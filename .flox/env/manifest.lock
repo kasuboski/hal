@@ -51,6 +51,9 @@
       "rustfmt": {
         "pkg-path": "rustfmt",
         "pkg-group": "rust-toolchain"
+      },
+      "yek": {
+        "pkg-path": "yek"
       }
     },
     "hook": {},
@@ -1125,6 +1128,122 @@
       "outputs": {
         "libv8": "/nix/store/3ympkr1v1z4r3vfyc6ikhx1chq5g464l-nodejs-22.14.0-libv8",
         "out": "/nix/store/7l1wra7b87yci5dln0hm0k8rwww6f2xj-nodejs-22.14.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/ifrn452arfx83c2nbm6j220cmxjsxswb-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mmy3177vixsgajx02i5l8akds8nsi532-yek-0.21.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/gx78xbs9c9my88jzsqxih30psryzzkmh-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/084fjbfvs6vn3cxqnkwb107d053n60dc-yek-0.21.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/gsxbbk4abc65dm0qr7bfg9ip6sa6llz6-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/q8p1nljjkw73l7vh76lsw9285ps3qi1m-yek-0.21.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/g0wnc15s4zxfdb482zph19iyghlrhs2p-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/s2bbqydwavfhgvplls008zmhi27l3fh8-yek-0.21.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

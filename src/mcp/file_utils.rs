@@ -201,7 +201,6 @@ pub async fn write_file(
     Ok(())
 }
 
-
 /// Get a directory tree from a path
 ///
 /// Lists directories and files in the specified directory with their hierarchical structure.
@@ -241,10 +240,11 @@ pub async fn directory_tree(
 
     // Build the tree structure
     let mut result = Vec::new();
-    let root_name = path.file_name()
+    let root_name = path
+        .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string());
-    
+
     result.push(root_name);
     build_tree_structure(path, &mut result, String::from("  "), 1).await?;
 
@@ -283,26 +283,27 @@ async fn build_tree_structure(
 
     // Process all entries
     let mut entry_list = Vec::new();
-    
+
     while let Ok(Some(entry)) = entries.next_entry().await {
         let path = entry.path();
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
-            
+
         // Skip hidden files and directories (starting with .)
         if name.starts_with('.') {
             continue;
         }
-        
+
         entry_list.push((path, name));
     }
-    
+
     // Sort entries: directories first, then files, both alphabetically
     entry_list.sort_by(|(path_a, name_a), (path_b, name_b)| {
         let is_dir_a = path_a.is_dir();
         let is_dir_b = path_b.is_dir();
-        
+
         if is_dir_a && !is_dir_b {
             std::cmp::Ordering::Less
         } else if !is_dir_a && is_dir_b {
@@ -311,15 +312,15 @@ async fn build_tree_structure(
             name_a.cmp(name_b)
         }
     });
-    
+
     // Process each entry
     for (i, (path, name)) in entry_list.iter().enumerate() {
         let is_last = i == entry_list.len() - 1;
         let connector = if is_last { "└── " } else { "├── " };
-        
+
         let entry_prefix = format!("{}{}", prefix, connector);
         result.push(format!("{}{}", entry_prefix, name));
-        
+
         // Recursively process subdirectories
         if path.is_dir() {
             let next_prefix = if is_last {
@@ -327,12 +328,12 @@ async fn build_tree_structure(
             } else {
                 format!("{}│   ", prefix)
             };
-            
+
             // Use Box::pin to handle the recursive async call
             let build_future = Box::pin(build_tree_structure(path, result, next_prefix, depth + 1));
             build_future.await?;
         }
     }
-    
+
     Ok(())
 }
