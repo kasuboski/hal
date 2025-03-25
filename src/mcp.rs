@@ -21,6 +21,7 @@ use executor::Executor;
 pub use permissions::{create_permissions, PermissionsRef, SessionPermissions};
 use shell_utils::ShellExecutor;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 pub use tools::{register_tools, tools};
 
 use mcpr::{
@@ -75,9 +76,11 @@ pub async fn run(name: String, version: String, transport: StdioTransport) -> Re
 }
 
 /// State for the MCP server
+#[derive(Clone)]
 pub struct State {
     permissions: PermissionsRef,
     executor: Arc<dyn Executor + Send + Sync>,
+    project_path: Arc<Mutex<Option<String>>>,
 }
 
 impl State {
@@ -90,6 +93,7 @@ impl State {
         State {
             permissions,
             executor,
+            project_path: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -101,5 +105,9 @@ impl State {
     /// Get a reference to the executor
     pub fn executor(&self) -> Arc<dyn Executor + Send + Sync> {
         self.executor.clone()
+    }
+
+    pub fn project_path(&self) -> Arc<Mutex<Option<String>>> {
+        self.project_path.clone()
     }
 }

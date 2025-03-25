@@ -66,6 +66,74 @@ pub fn tools() -> Vec<Tool> {
         },
     });
 
+    // Init tool
+    tools.push(Tool {
+        name: "init".to_string(),
+        description: Some("Initialize the server with a project directory. This will request read and write permissions for the directory. Call this when the user specifies a project or directory to work in. It is helpful to call this before other tools. It will return a directory tree for the project.".to_string()),
+        input_schema: ToolInputSchema {
+            r#type: "object".to_string(),
+            properties: Some(
+                [
+                    (
+                        "path".to_string(),
+                        json!({
+                            "type": "string",
+                            "description": "Path to the directory to initialize"
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .collect::<HashMap<_, _>>(),
+            ),
+            required: Some(vec!["path".to_string()]),
+        },
+    });
+
+    // Think tool
+    tools.push(Tool {
+        name: "think".to_string(),
+        description: Some("Use the tool to think about something. It will not obtain new information or change the database, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed.".to_string()),
+        input_schema: ToolInputSchema {
+            r#type: "object".to_string(),
+            properties: Some(
+                [
+                    (
+                        "thought".to_string(),
+                        json!({
+                            "type": "string",
+                            "description": "A thought to think about"
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .collect::<HashMap<_, _>>(),
+            ),
+            required: Some(vec!["thought".to_string()]),
+        },
+    });
+
+    tools.push(Tool {
+        name: "directory_tree".to_string(),
+        description: Some("Get a directory tree given a path. Returns a list of directories and files in the directory. Requires read permission.".to_string()),
+        input_schema: ToolInputSchema {
+            r#type: "object".to_string(),
+            properties: Some(
+                [
+                    (
+                        "path".to_string(),
+                        json!({
+                            "type": "string",
+                            "description": "Path to the directory"
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .collect::<HashMap<_, _>>(),
+            ),
+            required: Some(vec!["path".to_string()]),
+        },
+    });
+
     // Show file tool
     tools.push(Tool {
         name: "show_file".to_string(),
@@ -185,7 +253,7 @@ pub fn tools() -> Vec<Tool> {
     // Write file tool
     tools.push(Tool {
         name: "write_file".to_string(),
-        description: Some("Create new files or update existing ones - use append=true to add to file instead of overwriting. Creates files if they don't exist. Requires write permission for the directory.".to_string()),
+        description: Some("Create new files or update existing ones - use append=true to add to file instead of overwriting. Creates files if they don't exist. You should read the contents of the file before writing to it. Requires write permission for the directory.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -223,7 +291,7 @@ pub fn tools() -> Vec<Tool> {
     // Execute shell command tool
     tools.push(Tool {
         name: "execute_shell_command".to_string(),
-        description: Some("Run simple shell commands - returns stdout, stderr, and exit code. No pipes, redirects, or special characters allowed. Limited to safe commands. Requires execute permission first.".to_string()),
+        description: Some("Run simple shell commands - returns stdout, stderr, and exit code. Limited to safe commands. Requires execute permission first.".to_string()),
         input_schema: ToolInputSchema {
             r#type: "object".to_string(),
             properties: Some(
@@ -308,11 +376,16 @@ pub fn register_tools<T: Transport + Send + Sync + Clone + 'static>(
     // Register permission request tool
     register_request_permission_tool(server, state.permissions())?;
 
+    register_project_init_tool(server, state.clone())?;
+
+    register_think_tool(server)?;
+
     // Register file operation tools
     register_show_file_tool(server, state.permissions())?;
     register_search_in_file_tool(server, state.permissions())?;
     register_edit_file_tool(server, state.permissions())?;
     register_write_file_tool(server, state.permissions())?;
+    register_directory_tree_tool(server, state.permissions())?;
 
     // Register shell command tool
     register_execute_shell_command_tool(server, state)?;
@@ -321,6 +394,78 @@ pub fn register_tools<T: Transport + Send + Sync + Clone + 'static>(
     register_hal_search_tool(server)?;
 
     Ok(())
+}
+
+fn register_think_tool<T: Transport + Send + Sync + Clone + 'static>(
+    server: &mut Server<T>,
+) -> Result<(), MCPError> {
+    server.register_tool_handler("think", move |_params: Value| async move {
+        Ok(json!({
+            "output": "thought complete",
+        }))
+    })
+}
+
+fn register_project_init_tool<T: Transport + Send + Sync + Clone + 'static>(
+    server: &mut Server<T>,
+    state: State,
+) -> Result<(), MCPError> {
+    server.register_tool_handler("init", move |params: Value| {
+        let project_path = state.project_path();
+        let perms = state.permissions();
+        async move {
+            let path = params
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| MCPError::Protocol("Missing path parameter".to_string()))?;
+
+            let path_buf = PathBuf::from(path);
+
+            // Basic validation
+            super::permissions::basic_path_validation(&path_buf).map_err(MCPError::Protocol)?;
+
+            // Get parent directory to grant permission to
+            let dir_path = if path_buf.is_dir() {
+                path_buf.clone()
+            } else {
+                path_buf
+                    .parent()
+                    .ok_or_else(|| {
+                        MCPError::Protocol("Invalid path: no parent directory".to_string())
+                    })?
+                    .to_path_buf()
+            };
+
+            {
+                let perms = &mut *perms.lock().await;
+                // Update permissions
+                perms.allow_read(dir_path.clone());
+                perms.allow_write(dir_path.clone());
+            }
+
+            {
+                // Update project path
+                *project_path.lock().await = Some(path_buf.to_string_lossy().to_string());
+            }
+
+            // Use file utility to get directory tree
+            let directory_tree = match file_utils::directory_tree(&path_buf, &perms).await {
+                Ok(tree) => Ok(json!({
+                    "tree": tree,
+                    "path": path,
+                    "entry_count": tree.len() - 1, // Excluding the root entry
+                    "message": format!("Successfully retrieved directory tree for: {}", path)
+                })),
+                Err(e) => Err(MCPError::Protocol(e)),
+            }?;
+
+            Ok(json!({
+                "success": true,
+                "directory_tree": directory_tree,
+                "message": format!("Initialized project: {}", path_buf.display()),
+            }))
+        }
+    })
 }
 
 /// Register the request_permission tool
@@ -611,6 +756,38 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'sta
                     "success": result.exit_code == 0
                 })),
                 Err(e) => Err(MCPError::Protocol(e.to_string())),
+            }
+        }
+    })?;
+
+    Ok(())
+}
+
+/// Register the directory_tree tool
+fn register_directory_tree_tool<T: Transport + Send + Sync + Clone + 'static>(
+    server: &mut Server<T>,
+    permissions: PermissionsRef,
+) -> Result<(), MCPError> {
+    // Register handler
+    server.register_tool_handler("directory_tree", move |params: Value| {
+        let permissions = permissions.clone();
+        async move {
+            let path = params
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| MCPError::Protocol("Missing path parameter".to_string()))?;
+
+            let path_buf = PathBuf::from(path);
+
+            // Use file utility to get directory tree
+            match file_utils::directory_tree(&path_buf, &permissions).await {
+                Ok(tree) => Ok(json!({
+                    "tree": tree,
+                    "path": path,
+                    "entry_count": tree.len() - 1, // Excluding the root entry
+                    "message": format!("Successfully retrieved directory tree for: {}", path)
+                })),
+                Err(e) => Err(MCPError::Protocol(e)),
             }
         }
     })?;

@@ -5,6 +5,7 @@
 //! - Searching files for patterns or regular expressions
 //! - Making precise string replacements in files
 //! - Writing or appending content to files
+//! - Retrieving a directory tree structure
 //!
 //! Each operation checks permissions and validates paths before proceeding,
 //! ensuring security and proper error handling.
@@ -197,5 +198,141 @@ pub async fn write_file(
             .map_err(|e| format!("Failed to write file: {}", e))?;
     }
 
+    Ok(())
+}
+
+
+/// Get a directory tree from a path
+///
+/// Lists directories and files in the specified directory with their hierarchical structure.
+/// Requires read permission for the directory.
+///
+/// # Arguments
+///
+/// * `path` - Path to the directory
+/// * `permissions` - Reference to permissions object
+///
+/// # Returns
+///
+/// * `Result<Vec<String>, String>` - List of paths in tree format or error message
+pub async fn directory_tree(
+    path: &Path,
+    permissions: &PermissionsRef,
+) -> Result<Vec<String>, String> {
+    // Validate path
+    basic_path_validation(path)?;
+
+    // Check permissions
+    let perms = permissions.lock().await;
+    if !perms.can_read(path) {
+        return Err(format!(
+            "Read permission not granted for path: {}. Request permission first.",
+            path.display()
+        ));
+    }
+
+    // Verify directory exists and is a directory
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", path.display()));
+    }
+    if !path.is_dir() {
+        return Err(format!("Path is not a directory: {}", path.display()));
+    }
+
+    // Build the tree structure
+    let mut result = Vec::new();
+    let root_name = path.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    
+    result.push(root_name);
+    build_tree_structure(path, &mut result, String::from("  "), 1).await?;
+
+    Ok(result)
+}
+
+/// Helper function to recursively build the directory tree structure
+///
+/// # Arguments
+///
+/// * `dir_path` - Current directory path
+/// * `result` - Vector to store tree entries
+/// * `prefix` - String prefix for the current level
+/// * `max_depth` - Maximum recursion depth (to prevent excessive output)
+///
+/// # Returns
+///
+/// * `Result<(), String>` - Ok on success or error message
+async fn build_tree_structure(
+    dir_path: &Path,
+    result: &mut Vec<String>,
+    prefix: String,
+    depth: usize,
+) -> Result<(), String> {
+    // Guard against too deep recursion
+    if depth > 10 {
+        result.push(format!("{}... (max depth reached)", prefix));
+        return Ok(());
+    }
+
+    // Read directory entries
+    let mut entries = match fs::read_dir(dir_path).await {
+        Ok(entries) => entries,
+        Err(e) => return Err(format!("Failed to read directory: {}", e)),
+    };
+
+    // Process all entries
+    let mut entry_list = Vec::new();
+    
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        let name = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+            
+        // Skip hidden files and directories (starting with .)
+        if name.starts_with('.') {
+            continue;
+        }
+        
+        entry_list.push((path, name));
+    }
+    
+    // Sort entries: directories first, then files, both alphabetically
+    entry_list.sort_by(|(path_a, name_a), (path_b, name_b)| {
+        let is_dir_a = path_a.is_dir();
+        let is_dir_b = path_b.is_dir();
+        
+        if is_dir_a && !is_dir_b {
+            std::cmp::Ordering::Less
+        } else if !is_dir_a && is_dir_b {
+            std::cmp::Ordering::Greater
+        } else {
+            name_a.cmp(name_b)
+        }
+    });
+    
+    // Process each entry
+    for (i, (path, name)) in entry_list.iter().enumerate() {
+        let is_last = i == entry_list.len() - 1;
+        let connector = if is_last { "└── " } else { "├── " };
+        
+        let entry_prefix = format!("{}{}", prefix, connector);
+        result.push(format!("{}{}", entry_prefix, name));
+        
+        // Recursively process subdirectories
+        if path.is_dir() {
+            let next_prefix = if is_last {
+                format!("{}    ", prefix)
+            } else {
+                format!("{}│   ", prefix)
+            };
+            
+            // Use Box::pin to handle the recursive async call
+            let build_future = Box::pin(build_tree_structure(path, result, next_prefix, depth + 1));
+            build_future.await?;
+        }
+    }
+    
     Ok(())
 }
