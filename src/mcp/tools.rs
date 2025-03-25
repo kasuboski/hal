@@ -379,10 +379,6 @@ fn register_request_permission_tool<T: Transport + Send + Sync + Clone + 'static
                     // For execute, we're permitting a command rather than a directory
                     let command = path; // In this case, "path" is actually the command
 
-                    // Validate command
-                    super::shell_utils::validate_command(command)
-                        .map_err(|e| MCPError::Protocol(e))?;
-
                     // Extract the program name
                     let program = command.split_whitespace().next()
                         .ok_or_else(|| MCPError::Protocol("Empty command".to_string()))?;
@@ -600,11 +596,6 @@ fn register_execute_shell_command_tool<T: Transport + Send + Sync + Clone + 'sta
                 .get("working_directory")
                 .and_then(|v| v.as_str())
                 .map(PathBuf::from);
-
-            // Validate command for safety
-            // We still need to validate the command before execution
-            let validate_fn = &super::shell_utils::validate_command;
-            validate_fn(command).map_err(MCPError::Protocol)?;
 
             // Execute command
             match executor

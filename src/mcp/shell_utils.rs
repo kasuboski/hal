@@ -6,12 +6,10 @@
 //! - Permission checking against an allowlist
 //!
 //! The implementation focuses on security by:
-//! - Validating that commands don't contain shell metacharacters
 //! - Checking permissions against an allowlist
 //! - Supporting a working directory specification
 //! - Providing clear error messages for failures
 //! - Detecting and using the user's default shell
-//! - Reusing the shell between command executions for efficiency
 
 use std::path::Path;
 use std::sync::Arc;
@@ -199,23 +197,4 @@ async fn get_unix_shell() -> Option<String> {
     }
 
     None
-}
-
-/// Validate that a command is safe to execute (no pipes, redirects, etc.)
-pub fn validate_command(command: &str) -> Result<(), String> {
-    // Check for shell metacharacters
-    let dangerous_chars = [
-        ';', '&', '|', '>', '<', '`', '$', '(', ')', '{', '}', '[', ']', '\\', '\'', '\"',
-    ];
-
-    for c in dangerous_chars.iter() {
-        if command.contains(*c) {
-            return Err(format!(
-                "Command contains dangerous character '{}'. Only simple commands are allowed.",
-                c
-            ));
-        }
-    }
-
-    Ok(())
 }
