@@ -1,13 +1,6 @@
 use anyhow::Result;
 use hal::tools;
-use rig::{
-    cli_chatbot::cli_chatbot,
-    completion::ToolDefinition,
-    tool::{Tool, ToolEmbedding, ToolSet},
-    vector_store::in_memory_store::InMemoryVectorStore,
-};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use rig::{agent::AgentBuilder, cli_chatbot::cli_chatbot, tool::ToolSet};
 
 // Main function that sets up the CLI chatbot with the tools
 #[tokio::main]
@@ -15,10 +8,24 @@ async fn main() -> Result<()> {
     let client = hal::model::Client::new_gemini_free_from_env();
 
     // Create toolset with all the defined tools
-    let toolset = ToolSet::from_tools(tools::get_all_tools());
+    let mut toolset = ToolSet::default();
+    toolset.add_tools(tools::get_all_tools());
+
+    let tool_explanation = toolset
+        .documents()
+        .await?
+        .iter()
+        .cloned()
+        .map(|doc| doc.text)
+        .collect::<Vec<String>>()
+        .join("\n");
 
     let completion = client.completion().clone();
-    let agent = AgentBuilder::new(completion).tool_set(toolset).build();
+    let mut agent = AgentBuilder::new(completion)
+        .preamble("You are an expert coder. You have access to various tools to implement your goals. Do as the user asks, maintaining good code quality.")
+        .append_preamble(tool_explanation.as_str())
+        .build();
+    agent.tools = toolset;
 
     // Start the CLI chatbot
     cli_chatbot(agent).await?;

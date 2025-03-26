@@ -223,10 +223,8 @@ impl Tool for SearchInFile {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // In a real implementation, this would check permissions and search the file
         // Example simplified implementation
-        let matches = vec![
-            (1, "This line contains the search pattern".to_string()),
-            (5, "Another match found here".to_string())
-        ];
+        let matches = [(1, "This line contains the search pattern".to_string()),
+            (5, "Another match found here".to_string())];
         
         Ok(json!({
             "matches": matches.iter().map(|(line_num, content)| {

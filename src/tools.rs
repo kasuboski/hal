@@ -26,7 +26,6 @@ pub fn get_all_tools() -> ToolSet {
         // Project tools
         .static_tool(project::RequestPermission)
         .static_tool(project::Think)
-        
         // File tools
         .static_tool(file::DirectoryTree)
         .static_tool(file::ShowFile)
@@ -34,7 +33,6 @@ pub fn get_all_tools() -> ToolSet {
         .static_tool(file::EditFile)
         .static_tool(file::WriteFile)
         .static_tool(file::ExecuteShellCommand)
-        
         // Code tools
         .static_tool(code::CodeRepoOverview)
         .static_tool(code::Search)
