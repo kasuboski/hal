@@ -33,6 +33,9 @@
           "aarch64-darwin"
         ]
       },
+      "nodejs": {
+        "pkg-path": "nodejs"
+      },
       "rust-analyzer": {
         "pkg-path": "rust-analyzer",
         "pkg-group": "rust-analyzer"
@@ -48,6 +51,9 @@
       "rustfmt": {
         "pkg-path": "rustfmt",
         "pkg-group": "rust-toolchain"
+      },
+      "yek": {
+        "pkg-path": "yek"
       }
     },
     "hook": {},
@@ -775,13 +781,13 @@
       "description": "Next-generation test runner for Rust projects",
       "install_id": "cargo-nextest",
       "license": "[ MIT, Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "cargo-nextest-0.9.92",
       "pname": "cargo-nextest",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -804,13 +810,13 @@
       "description": "Next-generation test runner for Rust projects",
       "install_id": "cargo-nextest",
       "license": "[ MIT, Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "cargo-nextest-0.9.92",
       "pname": "cargo-nextest",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -833,13 +839,13 @@
       "description": "Next-generation test runner for Rust projects",
       "install_id": "cargo-nextest",
       "license": "[ MIT, Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "cargo-nextest-0.9.92",
       "pname": "cargo-nextest",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -862,13 +868,13 @@
       "description": "Next-generation test runner for Rust projects",
       "install_id": "cargo-nextest",
       "license": "[ MIT, Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "cargo-nextest-0.9.92",
       "pname": "cargo-nextest",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -891,13 +897,13 @@
       "description": "C language family frontend for LLVM (wrapper script)",
       "install_id": "clang",
       "license": "[ NCSA, Apache-2.0 WITH LLVM-exception ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "clang-wrapper-19.1.7",
       "pname": "clang",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -920,13 +926,13 @@
       "description": "GNU Compiler Collection, version 14-20241116 (wrapper script)",
       "install_id": "gcc",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "gcc-wrapper-14-20241116",
       "pname": "gcc",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -952,13 +958,13 @@
       "description": "GNU Compiler Collection, version 14-20241116 (wrapper script)",
       "install_id": "gcc",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "gcc-wrapper-14-20241116",
       "pname": "gcc",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -984,13 +990,13 @@
       "description": "Iconv(3) implementation",
       "install_id": "libiconv",
       "license": "[ BSD-2-Clause, BSD-3-Clause, APSL-1.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
       "name": "libiconv-109",
       "pname": "libiconv",
-      "rev": "36fd87baa9083f34f7f5027900b62ee6d09b1f2f",
-      "rev_count": 764203,
-      "rev_date": "2025-03-07T20:39:30Z",
-      "scrape_date": "2025-03-09T00:31:08Z",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
       "stabilities": [
         "unstable"
       ],
@@ -1004,6 +1010,242 @@
         "out": "/nix/store/i0b08c8m02rs2sazmd7sr2zxbnz6ylsf-libiconv-109"
       },
       "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/nl4c43rbyv6mvb0a0y7p36wi928g1gib-nodejs-22.14.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "nodejs-22.14.0",
+      "pname": "nodejs",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/slffbl0q14qc93dslaynyzh005rd869s-nodejs-22.14.0-libv8",
+        "out": "/nix/store/91y8h7rysgi5cl8hsj2bmjd00dq2l9pk-nodejs-22.14.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/hh2siwhf3zxqnfgqa55kls2fz3v37l27-nodejs-22.14.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "nodejs-22.14.0",
+      "pname": "nodejs",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/zb1ly8w6vdw2pjxwkbm3vymyfxyy7af8-nodejs-22.14.0-libv8",
+        "out": "/nix/store/ji8zs96759g59b4q6kz94pbfq6gvlazx-nodejs-22.14.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/ikl0p2wi3gvzp55kxjjqwj63msl6pnlf-nodejs-22.14.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "nodejs-22.14.0",
+      "pname": "nodejs",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/24z3qqnvs154idkbbbpjd55m11clidad-nodejs-22.14.0-libv8",
+        "out": "/nix/store/067kj1aav6z9jhqbkyapjwjjrgl38ihs-nodejs-22.14.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/ylk0rgvzaj618qj0g00cwm5909hp71f0-nodejs-22.14.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "nodejs-22.14.0",
+      "pname": "nodejs",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.14.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/3ympkr1v1z4r3vfyc6ikhx1chq5g464l-nodejs-22.14.0-libv8",
+        "out": "/nix/store/7l1wra7b87yci5dln0hm0k8rwww6f2xj-nodejs-22.14.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/ifrn452arfx83c2nbm6j220cmxjsxswb-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mmy3177vixsgajx02i5l8akds8nsi532-yek-0.21.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/gx78xbs9c9my88jzsqxih30psryzzkmh-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/084fjbfvs6vn3cxqnkwb107d053n60dc-yek-0.21.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/gsxbbk4abc65dm0qr7bfg9ip6sa6llz6-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/q8p1nljjkw73l7vh76lsw9285ps3qi1m-yek-0.21.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "yek",
+      "broken": false,
+      "derivation": "/nix/store/g0wnc15s4zxfdb482zph19iyghlrhs2p-yek-0.21.0.drv",
+      "description": "Serialize text files for LLM consumption",
+      "install_id": "yek",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "yek-0.21.0",
+      "pname": "yek",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/s2bbqydwavfhgvplls008zmhi27l3fh8-yek-0.21.0"
+      },
+      "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
     }

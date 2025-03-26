@@ -17,7 +17,7 @@ fn get_resource() -> Resource {
         .clone()
 }
 
-fn init_logs() -> SdkLoggerProvider {
+fn _init_logs() -> SdkLoggerProvider {
     let exporter = LogExporter::builder()
         .with_http()
         .build()
@@ -80,10 +80,12 @@ pub fn init_tracing_subscriber() -> OtelGuard {
     //     .add_directive("reqwest=off".parse().unwrap());
     // let log_layer = log_layer.with_filter(filter_otel);
 
-    let stdout_layer = tracing_subscriber::fmt::layer().with_filter(EnvFilter::from_default_env());
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_filter(EnvFilter::from_default_env());
 
     tracing_subscriber::registry()
-        .with(stdout_layer)
+        .with(console_layer)
         .with(MetricsLayer::new(meter_provider.clone()))
         .with(OpenTelemetryLayer::new(tracer))
         // .with(log_layer)

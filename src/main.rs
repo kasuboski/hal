@@ -33,6 +33,7 @@ use anyhow::{anyhow, Context};
 use clap::{Args, Parser, Subcommand};
 use hal::{crawler::CrawledPage, processor::chunk_markdown};
 use indicatif::{ProgressBar, ProgressStyle};
+use mcpr::transport::stdio::StdioTransport;
 use std::path::PathBuf;
 use telemetry::OtelGuard;
 use tokio::sync::mpsc;
@@ -64,6 +65,9 @@ enum Commands {
 
     /// Reembed all chunks in the index with new embeddings
     Reembed(ReembedArgs),
+
+    /// Start an MCP server
+    Mcp(McpArgs),
 }
 
 #[derive(Args, Debug)]
@@ -204,6 +208,17 @@ struct ReembedArgs {
     source: Option<String>,
 }
 
+#[derive(Args, Debug)]
+struct McpArgs {
+    /// Server name
+    #[arg(short, long, default_value = "HAL MCP Server")]
+    name: String,
+
+    /// Server version
+    #[arg(short, long, default_value = "1.0.0")]
+    version: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
@@ -241,6 +256,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Reembed(args)) => {
             reembed_command(args).await?;
+        }
+        Some(Commands::Mcp(args)) => {
+            mcp_command(args).await?;
         }
         None => {
             // If no command is provided, show help
@@ -675,4 +693,17 @@ async fn count_chunks_to_reembed(
     };
 
     Ok(count as usize)
+}
+
+/// Start an MCP server with given configuration
+#[instrument]
+async fn mcp_command(args: McpArgs) -> anyhow::Result<()> {
+    info!("Starting HAL MCP server...");
+
+    // Create a transport
+    let transport = StdioTransport::new();
+
+    hal::mcp::run(args.name, args.version, transport)
+        .await
+        .context("error running MCP server")
 }
