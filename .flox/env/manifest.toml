@@ -41,6 +41,7 @@ clang.systems = ["aarch64-darwin"]
 cargo-nextest.pkg-path = "cargo-nextest"
 nodejs.pkg-path = "nodejs"
 yek.pkg-path = "yek"
+jujutsu.pkg-path = "jujutsu"
 
 
 ## Environment Variables ---------------------------------------------

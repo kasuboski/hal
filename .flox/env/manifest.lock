@@ -27,6 +27,9 @@
           "x86_64-linux"
         ]
       },
+      "jujutsu": {
+        "pkg-path": "jujutsu"
+      },
       "libiconv": {
         "pkg-path": "libiconv",
         "systems": [
@@ -978,6 +981,122 @@
         "info": "/nix/store/j2iqinh2hk1npgfijm31kzm786cr335z-gcc-wrapper-14-20241116-info",
         "man": "/nix/store/rkzk4376znb9s9b4lflc174vcv6v8bqq-gcc-wrapper-14-20241116-man",
         "out": "/nix/store/ii75mhh7sxl11167m1b86p0qrjsjyjmd-gcc-wrapper-14-20241116"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jujutsu",
+      "broken": false,
+      "derivation": "/nix/store/84nszmjh8h1xi70cwk97s8s2y5li8a2n-jujutsu-0.27.0.drv",
+      "description": "Git-compatible DVCS that is both simple and powerful",
+      "install_id": "jujutsu",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "jujutsu-0.27.0",
+      "pname": "jujutsu",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.27.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/bkp1l2ksirpl1l8c3gadval3g6wvz5jl-jujutsu-0.27.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jujutsu",
+      "broken": false,
+      "derivation": "/nix/store/m9qjj0nclq90n8g4yw7shd6wdbld8y7l-jujutsu-0.27.0.drv",
+      "description": "Git-compatible DVCS that is both simple and powerful",
+      "install_id": "jujutsu",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "jujutsu-0.27.0",
+      "pname": "jujutsu",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.27.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/k9himpd2hrd4jpbnmxsa5wx7y9n622gg-jujutsu-0.27.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jujutsu",
+      "broken": false,
+      "derivation": "/nix/store/hfkgi9xp6mpw8cky4ism8w1aspb054cl-jujutsu-0.27.0.drv",
+      "description": "Git-compatible DVCS that is both simple and powerful",
+      "install_id": "jujutsu",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "jujutsu-0.27.0",
+      "pname": "jujutsu",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.27.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/sbxxjwf3yc84blmbhajyzdm7n5ahc0rc-jujutsu-0.27.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jujutsu",
+      "broken": false,
+      "derivation": "/nix/store/dkp4j7w649im6vycpn0v53pq6wpzvzn2-jujutsu-0.27.0.drv",
+      "description": "Git-compatible DVCS that is both simple and powerful",
+      "install_id": "jujutsu",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "name": "jujutsu-0.27.0",
+      "pname": "jujutsu",
+      "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+      "rev_count": 764837,
+      "rev_date": "2025-03-09T09:40:45Z",
+      "scrape_date": "2025-03-11T00:31:17Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.27.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/4kgnpb11gbjhbsywffgzkdwfzf0sgr4r-jujutsu-0.27.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

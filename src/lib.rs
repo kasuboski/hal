@@ -59,6 +59,7 @@ mod error;
 mod markdown;
 pub mod mcp;
 pub mod model;
+pub mod tools;
 
 // RAG feature modules
 pub mod crawler;
