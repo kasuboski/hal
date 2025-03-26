@@ -24,6 +24,7 @@ use rig::tool::ToolSet;
 pub fn get_all_tools() -> ToolSet {
     ToolSet::builder()
         // Project tools
+        .static_tool(project::Init)
         .static_tool(project::RequestPermission)
         .static_tool(project::Think)
         // File tools

@@ -1,10 +1,15 @@
 use anyhow::Result;
+use regex::Regex;
 use rig::{
     completion::ToolDefinition,
     tool::{Tool, ToolEmbedding},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::path::{Path, PathBuf};
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 
 // Importing common error types from project module
 use super::project::{FileError, InitError};
@@ -74,17 +79,128 @@ impl Tool for DirectoryTree {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and list directory contents
-        // Example simplified implementation
-        let path = &args.path;
-        
+        let path = PathBuf::from(&args.path);
+
+        // Verify directory exists and is a directory
+        if !path.exists() {
+            return Err(FileError(format!(
+                "Path does not exist: {}",
+                path.display()
+            )));
+        }
+        if !path.is_dir() {
+            return Err(FileError(format!(
+                "Path is not a directory: {}",
+                path.display()
+            )));
+        }
+
+        // Build the tree structure
+        let mut result = Vec::new();
+        let root_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+        result.push(root_name);
+        build_tree_structure(&path, &mut result, String::from("  "), 1)
+            .await
+            .map_err(|e| FileError(e))?;
+
         Ok(json!({
-            "tree": [path, "  ├── file1.txt", "  ├── file2.txt", "  └── dir1", "      └── nested.txt"],
-            "path": path,
-            "entry_count": 4,
-            "message": format!("Successfully retrieved directory tree for: {}", path)
+            "tree": result,
+            "path": args.path,
+            "entry_count": result.len() - 1, // Excluding the root entry
+            "message": format!("Successfully retrieved directory tree for: {}", args.path)
         }))
     }
+}
+
+/// Helper function to recursively build the directory tree structure
+///
+/// # Arguments
+///
+/// * `dir_path` - Current directory path
+/// * `result` - Vector to store tree entries
+/// * `prefix` - String prefix for the current level
+/// * `depth` - Maximum recursion depth (to prevent excessive output)
+///
+/// # Returns
+///
+/// * `Result<(), String>` - Ok on success or error message
+pub async fn build_tree_structure(
+    dir_path: &Path,
+    result: &mut Vec<String>,
+    prefix: String,
+    depth: usize,
+) -> Result<(), String> {
+    // Guard against too deep recursion
+    if depth > 10 {
+        result.push(format!("{}... (max depth reached)", prefix));
+        return Ok(());
+    }
+
+    // Read directory entries
+    let mut entries = match fs::read_dir(dir_path).await {
+        Ok(entries) => entries,
+        Err(e) => return Err(format!("Failed to read directory: {}", e)),
+    };
+
+    // Process all entries
+    let mut entry_list = Vec::new();
+
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        // Skip hidden files and directories (starting with .)
+        if name.starts_with('.') {
+            continue;
+        }
+
+        entry_list.push((path, name));
+    }
+
+    // Sort entries: directories first, then files, both alphabetically
+    entry_list.sort_by(|(path_a, name_a), (path_b, name_b)| {
+        let is_dir_a = path_a.is_dir();
+        let is_dir_b = path_b.is_dir();
+
+        if is_dir_a && !is_dir_b {
+            std::cmp::Ordering::Less
+        } else if !is_dir_a && is_dir_b {
+            std::cmp::Ordering::Greater
+        } else {
+            name_a.cmp(name_b)
+        }
+    });
+
+    // Process each entry
+    for (i, (path, name)) in entry_list.iter().enumerate() {
+        let is_last = i == entry_list.len() - 1;
+        let connector = if is_last { "└── " } else { "├── " };
+
+        let entry_prefix = format!("{}{}", prefix, connector);
+        result.push(format!("{}{}", entry_prefix, name));
+
+        // Recursively process subdirectories
+        if path.is_dir() {
+            let next_prefix = if is_last {
+                format!("{}    ", prefix)
+            } else {
+                format!("{}│   ", prefix)
+            };
+
+            // Use Box::pin to handle recursion in async functions
+            let future = Box::pin(build_tree_structure(path, result, next_prefix, depth + 1));
+            future.await?;
+        }
+    }
+
+    Ok(())
 }
 
 impl ToolEmbedding for DirectoryTree {
@@ -100,7 +216,7 @@ impl ToolEmbedding for DirectoryTree {
         vec![
             "Get a directory tree for a specific path".into(),
             "List files and directories recursively".into(),
-            "View folder structure".into()
+            "View folder structure".into(),
         ]
     }
 
@@ -145,18 +261,41 @@ impl Tool for ShowFile {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and read the file
-        // Example simplified implementation
-        let content = "This is the content of the file.\nSecond line.\nThird line.";
-        let total_lines = content.lines().count();
-        
+        let path = PathBuf::from(&args.path);
+        let start_line = args.start_line.map(|v| v as usize);
+        let end_line = args.end_line.map(|v| v as usize);
+
+        // Read file
+        let content = fs::read_to_string(&path)
+            .await
+            .map_err(|e| FileError(format!("Failed to read file: {}", e)))?;
+
+        // Apply line range if specified
+        let filtered_content = if start_line.is_some() || end_line.is_some() {
+            let lines: Vec<&str> = content.lines().collect();
+            let start = start_line.unwrap_or(1).saturating_sub(1);
+            let end = end_line.unwrap_or(lines.len()).min(lines.len());
+
+            if start >= end || start >= lines.len() {
+                return Err(FileError(format!(
+                    "Invalid line range: {} to {}",
+                    start + 1,
+                    end
+                )));
+            }
+
+            lines[start..end].join("\n")
+        } else {
+            content
+        };
+
         Ok(json!({
-            "content": content,
+            "content": filtered_content,
             "path": args.path,
             "lines": {
-                "start": args.start_line.unwrap_or(1),
-                "end": args.end_line,
-                "total": total_lines
+                "start": start_line.unwrap_or(1),
+                "end": end_line,
+                "total": filtered_content.lines().count()
             }
         }))
     }
@@ -175,7 +314,7 @@ impl ToolEmbedding for ShowFile {
         vec![
             "View contents of a file".into(),
             "Read text from a file with option to specify line range".into(),
-            "Display file content".into()
+            "Display file content".into(),
         ]
     }
 
@@ -221,11 +360,38 @@ impl Tool for SearchInFile {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and search the file
-        // Example simplified implementation
-        let matches = [(1, "This line contains the search pattern".to_string()),
-            (5, "Another match found here".to_string())];
-        
+        let path = PathBuf::from(&args.path);
+        let pattern = &args.pattern;
+        let is_regex = args.is_regex.unwrap_or(false);
+
+        // Read file
+        let content = fs::read_to_string(&path)
+            .await
+            .map_err(|e| FileError(format!("Failed to read file: {}", e)))?;
+
+        let lines: Vec<&str> = content.lines().collect();
+        let mut matches = Vec::new();
+
+        if is_regex {
+            // Compile regex pattern
+            let regex = Regex::new(pattern)
+                .map_err(|e| FileError(format!("Invalid regex pattern: {}", e)))?;
+
+            // Search for matches
+            for (i, line) in lines.iter().enumerate() {
+                if regex.is_match(line) {
+                    matches.push((i + 1, line.to_string()));
+                }
+            }
+        } else {
+            // Simple string search
+            for (i, line) in lines.iter().enumerate() {
+                if line.contains(pattern) {
+                    matches.push((i + 1, line.to_string()));
+                }
+            }
+        }
+
         Ok(json!({
             "matches": matches.iter().map(|(line_num, content)| {
                 json!({
@@ -233,8 +399,8 @@ impl Tool for SearchInFile {
                     "content": content
                 })
             }).collect::<Vec<_>>(),
-            "pattern": args.pattern,
-            "is_regex": args.is_regex.unwrap_or(false),
+            "pattern": pattern,
+            "is_regex": is_regex,
             "match_count": matches.len(),
             "path": args.path
         }))
@@ -254,7 +420,7 @@ impl ToolEmbedding for SearchInFile {
         vec![
             "Search for patterns in a file".into(),
             "Find text in files using regex or simple patterns".into(),
-            "Locate specific content within files".into()
+            "Locate specific content within files".into(),
         ]
     }
 
@@ -299,9 +465,33 @@ impl Tool for EditFile {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and edit the file
-        // Example simplified implementation
-        
+        let path = PathBuf::from(&args.path);
+
+        // Read file
+        let content = fs::read_to_string(&path)
+            .await
+            .map_err(|e| FileError(format!("Failed to read file: {}", e)))?;
+
+        // Count occurrences of old_string
+        let occurrences = content.matches(&args.old_string).count();
+        if occurrences == 0 {
+            return Err(FileError(format!(
+                "String not found in file: {}",
+                path.display()
+            )));
+        } else if occurrences > 1 {
+            return Err(FileError(format!(
+                "Found {} occurrences of the string in file. Please provide more context to make the match unique.",
+                occurrences
+            )));
+        }
+
+        // Replace string and write back to file
+        let new_content = content.replace(&args.old_string, &args.new_string);
+        fs::write(&path, new_content)
+            .await
+            .map_err(|e| FileError(format!("Failed to write file: {}", e)))?;
+
         Ok(json!({
             "success": true,
             "path": args.path,
@@ -323,7 +513,7 @@ impl ToolEmbedding for EditFile {
         vec![
             "Replace text in a file".into(),
             "Edit file content by replacing specific strings".into(),
-            "Modify files by substituting text".into()
+            "Modify files by substituting text".into(),
         ]
     }
 
@@ -369,16 +559,46 @@ impl Tool for WriteFile {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and write to the file
-        // Example simplified implementation
+        let path = PathBuf::from(&args.path);
         let append = args.append.unwrap_or(false);
-        let mode = if append { "append" } else { "overwrite" };
-        
+
+        // Make sure parent directory exists
+        let parent_dir = path
+            .parent()
+            .ok_or_else(|| FileError("Invalid path: no parent directory".to_string()))?;
+
+        if !parent_dir.exists() {
+            return Err(FileError(format!(
+                "Directory does not exist: {}",
+                parent_dir.display()
+            )));
+        }
+
+        // Write or append to file
+        if append {
+            // Create file if it doesn't exist, or append to it
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .await
+                .map_err(|e| FileError(format!("Failed to open file for appending: {}", e)))?;
+
+            file.write_all(args.content.as_bytes())
+                .await
+                .map_err(|e| FileError(format!("Failed to append to file: {}", e)))?;
+        } else {
+            // Create or overwrite file
+            fs::write(&path, &args.content)
+                .await
+                .map_err(|e| FileError(format!("Failed to write file: {}", e)))?;
+        }
+
         Ok(json!({
             "success": true,
             "path": args.path,
             "bytes_written": args.content.len(),
-            "mode": mode,
+            "mode": if append { "append" } else { "overwrite" },
             "message": format!(
                 "Successfully {} to file: {}",
                 if append { "appended" } else { "wrote" },
@@ -401,7 +621,7 @@ impl ToolEmbedding for WriteFile {
         vec![
             "Create new files or update existing ones".into(),
             "Write content to files with option to append".into(),
-            "Save text to filesystem".into()
+            "Save text to filesystem".into(),
         ]
     }
 
@@ -442,16 +662,72 @@ impl Tool for ExecuteShellCommand {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // In a real implementation, this would check permissions and execute the command
-        // Example simplified implementation
-        
+        let command_str = &args.command;
+
+        // Check if command is safe (simple allowlist of safe commands)
+        let program = command_str
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| FileError("Empty command".to_string()))?;
+
+        let allowed_commands = vec![
+            "ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which",
+        ];
+
+        if !allowed_commands.contains(&program) {
+            return Err(FileError(format!(
+                "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
+                program
+            )));
+        }
+
+        // Create command using the detected shell
+        let shell = if cfg!(target_os = "windows") {
+            "cmd"
+        } else {
+            "sh"
+        };
+
+        let shell_args = if cfg!(target_os = "windows") {
+            vec!["/C", command_str]
+        } else {
+            vec!["-c", command_str]
+        };
+
+        // Set up the command
+        let mut command = Command::new(shell);
+        command.args(&shell_args);
+
+        // Set working directory if specified
+        if let Some(ref dir) = args.working_directory {
+            let path = PathBuf::from(dir);
+
+            // Verify path exists and is a directory
+            if !path.exists() || !path.is_dir() {
+                return Err(FileError(format!("Invalid working directory: {}", dir)));
+            }
+
+            command.current_dir(path);
+        }
+
+        // Execute command
+        let output = command
+            .output()
+            .await
+            .map_err(|e| FileError(format!("Failed to execute command: {}", e)))?;
+
+        // Parse output
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
+
         Ok(json!({
-            "stdout": "Command executed successfully",
-            "stderr": "",
-            "exit_code": 0,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
             "command": args.command,
             "working_directory": args.working_directory,
-            "success": true
+            "success": exit_code == 0
         }))
     }
 }
@@ -469,9 +745,42 @@ impl ToolEmbedding for ExecuteShellCommand {
         vec![
             "Execute shell commands".into(),
             "Run system commands with optional working directory".into(),
-            "Execute terminal operations".into()
+            "Execute terminal operations".into(),
         ]
     }
 
     fn context(&self) -> Self::Context {}
+}
+
+/// Basic validation to prevent access to system directories
+pub fn basic_path_validation(path: &Path) -> Result<(), String> {
+    // Check for obviously dangerous paths
+    let dangerous_paths = [
+        "/etc",
+        "/bin",
+        "/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/boot",
+        "/lib",
+        "/lib64",
+        "/dev",
+        "/proc",
+        "/sys",
+        "/var/run",
+        "/var/log",
+        "/var/lib",
+        "/var/tmp",
+    ];
+
+    // Convert to absolute path if possible
+    let path_to_check = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+    for dangerous in dangerous_paths.iter() {
+        if path_to_check.starts_with(dangerous) {
+            return Err(format!("Cannot access system directory: {}", dangerous));
+        }
+    }
+
+    Ok(())
 }
