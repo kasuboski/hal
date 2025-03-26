@@ -23,13 +23,13 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use ratatui::text::Text;
-use ratatui::widgets::ScrollbarState;
 use tokio::sync::mpsc;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::tui::error::{Error, Result};
 use crate::tui::event::{AppEvent, Event, EventHandler};
 use crate::tui::markdown::markdown_to_ratatui_text;
+use crate::tui::scroll::ScrollState;
 
 /// Application state
 pub struct App {
@@ -45,12 +45,10 @@ pub struct App {
     pub is_loading: bool,
     /// Counter for spinner animation frames
     pub spinner_frame: usize,
-    /// Scrollbar state for chat history
-    pub scrollbar_state: ScrollbarState,
-    /// Current scroll position for chat history
-    pub scroll_position: usize,
-    /// Current scroll position for input field
-    pub input_scroll_position: usize,
+    /// Enhanced scroll state for chat history
+    pub chat_scroll: ScrollState,
+    /// Enhanced scroll state for input field
+    pub input_scroll: ScrollState,
     /// Event handler
     event_handler: EventHandler,
 }
@@ -70,9 +68,8 @@ impl App {
             rendered_messages: Vec::new(),
             is_loading: false,
             spinner_frame: 0,
-            scrollbar_state: ScrollbarState::default(),
-            scroll_position: 0,
-            input_scroll_position: 0,
+            chat_scroll: ScrollState::new(),
+            input_scroll: ScrollState::new(),
             event_handler: EventHandler::new(),
         }
     }
@@ -124,11 +121,7 @@ impl App {
                                     mouse.row, height
                                 ));
 
-                                // Directly modify scroll position without cursor-based adjustment
-                                self.input_scroll_position =
-                                    self.input_scroll_position.saturating_sub(1);
-
-                                // Calculate total lines for clamping
+                                // Calculate total lines and visible height
                                 let mut total_lines = 0;
                                 let lines: Vec<&str> = self.input.split('\n').collect();
                                 for line in lines.iter() {
@@ -136,17 +129,16 @@ impl App {
                                     total_lines +=
                                         (line.width() as u16).saturating_sub(1) / line_width + 1;
                                 }
-
-                                // Clamp to valid range (don't allow scrolling past the top)
+                                
                                 let input_height = 3; // 5 - 2 for borders
-                                let max_scroll = total_lines.saturating_sub(input_height);
-                                if self.input_scroll_position > max_scroll as usize {
-                                    self.input_scroll_position = max_scroll as usize;
-                                }
+                                
+                                // Update content size and then scroll up
+                                self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+                                self.input_scroll.scroll_by(-1);
 
                                 self.debug_log(&format!(
                                     "Manual scroll up, new position: {}",
-                                    self.input_scroll_position
+                                    self.input_scroll.position
                                 ));
 
                                 // Update cursor position to match the first visible line
@@ -156,7 +148,7 @@ impl App {
                                     "Chat scroll up at row {} (terminal height: {})",
                                     mouse.row, height
                                 ));
-                                self.scroll_by(-1);
+                                self.chat_scroll.scroll_by(-1);
                             }
                         }
                         MouseEventKind::ScrollDown => {
@@ -166,13 +158,24 @@ impl App {
                                     mouse.row, height
                                 ));
 
-                                // Directly modify scroll position without cursor-based adjustment
-                                self.input_scroll_position =
-                                    self.input_scroll_position.saturating_add(1);
-
+                                // Calculate total lines and visible height
+                                let mut total_lines = 0;
+                                let lines: Vec<&str> = self.input.split('\n').collect();
+                                for line in lines.iter() {
+                                    let line_width = width.saturating_sub(2); // -2 for borders
+                                    total_lines +=
+                                        (line.width() as u16).saturating_sub(1) / line_width + 1;
+                                }
+                                
+                                let input_height = 3; // 5 - 2 for borders
+                                
+                                // Update content size and then scroll down
+                                self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+                                self.input_scroll.scroll_by(1);
+                                
                                 self.debug_log(&format!(
                                     "Manual scroll down, new position: {}",
-                                    self.input_scroll_position
+                                    self.input_scroll.position
                                 ));
 
                                 // Update cursor position to match the first visible line
@@ -182,7 +185,7 @@ impl App {
                                     "Chat scroll down at row {} (terminal height: {})",
                                     mouse.row, height
                                 ));
-                                self.scroll_by(1);
+                                self.chat_scroll.scroll_by(1);
                             }
                         }
                         MouseEventKind::Down(_) => {
@@ -203,7 +206,7 @@ impl App {
                                 if relative_row > 0 && relative_row < input_area_height - 1 {
                                     // Click is within the inner area (not on borders)
                                     let click_row =
-                                        relative_row - 1 + self.input_scroll_position as u16;
+                                        relative_row - 1 + self.input_scroll.position as u16;
 
                                     // Find the character position based on click coordinates
                                     self.set_cursor_position_from_click(
@@ -317,12 +320,36 @@ impl App {
             }
             KeyCode::PageUp => {
                 if key.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.scroll_by(-10);
+                    // Get a rough estimate of page size (half the terminal height)
+                    if let Ok((_, height)) = crossterm::terminal::size() {
+                        let page_size = (height / 2) as i32;
+                        self.chat_scroll.scroll_by(-page_size);
+                    } else {
+                        // Fallback if terminal size can't be determined
+                        self.chat_scroll.scroll_by(-10);
+                    }
                 }
             }
             KeyCode::PageDown => {
                 if key.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.scroll_by(10);
+                    // Get a rough estimate of page size (half the terminal height)
+                    if let Ok((_, height)) = crossterm::terminal::size() {
+                        let page_size = (height / 2) as i32;
+                        self.chat_scroll.scroll_by(page_size);
+                    } else {
+                        // Fallback if terminal size can't be determined
+                        self.chat_scroll.scroll_by(10);
+                    }
+                }
+            }
+            KeyCode::Home => {
+                if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.scroll_to_top();
+                }
+            }
+            KeyCode::End => {
+                if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.scroll_to_bottom();
                 }
             }
             _ => {}
@@ -337,13 +364,15 @@ impl App {
         self.rendered_messages
             .push((role.to_string(), rendered_text));
 
-        // Update scrollbar state with new content length
-        let total_height = self.calculate_total_height();
-        self.scrollbar_state = ScrollbarState::default().content_length(total_height);
+        // Calculate total height
+        let _total_height = self.calculate_total_height();
+        
+        // Note: We'll update the scroll position in the UI rendering code
+        // based on the viewport size and content height
     }
 
     /// Calculate total height of all messages
-    fn calculate_total_height(&self) -> usize {
+    pub fn calculate_total_height(&self) -> usize {
         self.rendered_messages
             .iter()
             .map(|(_, text)| text.height() + 2) // +2 for role line and separator
@@ -413,41 +442,25 @@ impl App {
 
     /// Scroll chat history up
     pub fn scroll_up(&mut self) {
-        let total_height = self.calculate_total_height();
-        self.scroll_position = self.scroll_position.saturating_sub(1);
-        self.scrollbar_state = ScrollbarState::default()
-            .content_length(total_height)
-            .position(self.scroll_position);
+        self.chat_scroll.scroll_by(-1);
     }
 
     /// Scroll chat history down
     pub fn scroll_down(&mut self) {
-        let total_height = self.calculate_total_height();
-        let max_pos = total_height.saturating_sub(1);
-        self.scroll_position = self.scroll_position.saturating_add(1).min(max_pos);
-        self.scrollbar_state = ScrollbarState::default()
-            .content_length(total_height)
-            .position(self.scroll_position);
+        self.chat_scroll.scroll_by(1);
     }
 
-    /// Scroll by a specific number of lines (positive = down, negative = up)
-    pub fn scroll_by(&mut self, delta: i32) {
-        let total_height = self.calculate_total_height();
-
-        self.scroll_position = if delta < 0 {
-            self.scroll_position
-                .saturating_sub(delta.unsigned_abs() as usize)
-        } else {
-            let max_pos = total_height.saturating_sub(1);
-            self.scroll_position
-                .saturating_add(delta as usize)
-                .min(max_pos)
-        };
-
-        self.scrollbar_state = ScrollbarState::default()
-            .content_length(total_height)
-            .position(self.scroll_position);
+    /// Scroll to the top of chat history
+    pub fn scroll_to_top(&mut self) {
+        self.chat_scroll.scroll_to_top();
     }
+    
+    /// Scroll to the bottom of chat history
+    pub fn scroll_to_bottom(&mut self) {
+        self.chat_scroll.scroll_to_bottom();
+    }
+    
+    // Remove the scroll_by method since we're now using chat_scroll.scroll_by directly
 
     /// Update spinner frame
     pub fn tick_spinner(&mut self) {
@@ -480,36 +493,32 @@ impl App {
         let width = terminal_width.saturating_sub(2); // -2 for borders
         let cursor_y = (current_line.width() as u16 / width + line_count as u16) as usize;
 
+        // Update the scroll state with the new content size
+        self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+
         // Debug log the cursor position and scroll calculations
         self.debug_log(&format!(
             "Cursor position: {}, Line: {}, Total lines: {}, Input height: {}, Current scroll: {}",
-            self.cursor_position, cursor_y, total_lines, input_height, self.input_scroll_position
+            self.cursor_position, cursor_y, total_lines, input_height, self.input_scroll.position
         ));
 
         // Only adjust scroll if cursor is completely outside visible area
         // This allows manual scrolling to work while still keeping cursor in view when typing
-        if cursor_y >= self.input_scroll_position + input_height as usize {
+        if cursor_y >= self.input_scroll.position + input_height as usize {
             // Cursor is below visible area
             let new_scroll = cursor_y - input_height as usize + 1;
-            self.input_scroll_position = new_scroll;
+            self.input_scroll.scroll_to(new_scroll);
             self.debug_log(&format!(
                 "Scrolling to keep cursor visible (below): {}",
                 new_scroll
             ));
-        } else if cursor_y < self.input_scroll_position {
+        } else if cursor_y < self.input_scroll.position {
             // Cursor is above visible area
-            self.input_scroll_position = cursor_y;
+            self.input_scroll.scroll_to(cursor_y);
             self.debug_log(&format!(
                 "Scrolling to keep cursor visible (above): {}",
                 cursor_y
             ));
-        }
-
-        // Clamp scroll position to valid range
-        let max_scroll = total_lines.saturating_sub(input_height);
-        if self.input_scroll_position > max_scroll as usize {
-            self.input_scroll_position = max_scroll as usize;
-            self.debug_log(&format!("Clamping scroll to max: {}", max_scroll));
         }
     }
 
@@ -576,10 +585,10 @@ impl App {
         // Update scroll position to ensure cursor is visible
         if let Ok((width, _)) = crossterm::terminal::size() {
             // Set scroll position to match the clicked row
-            self.input_scroll_position = click_row.saturating_sub(1) as usize;
+            self.input_scroll.scroll_to(click_row.saturating_sub(1) as usize);
             self.debug_log(&format!(
                 "Updated scroll position to {}",
-                self.input_scroll_position
+                self.input_scroll.position
             ));
 
             // Make sure the cursor is visible with the new scroll position
@@ -595,7 +604,7 @@ impl App {
         }
 
         let width = terminal_width.saturating_sub(2); // -2 for borders
-        let scroll_pos = self.input_scroll_position;
+        let scroll_pos = self.input_scroll.position;
 
         // Calculate character position for each line
         let mut line_starts: Vec<usize> = Vec::new();

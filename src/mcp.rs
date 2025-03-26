@@ -84,6 +84,12 @@ pub struct State {
     project_path: Arc<Mutex<Option<String>>>,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl State {
     /// Create a new state with the given permissions
     pub fn new() -> Self {

@@ -32,6 +32,8 @@ pub mod error;
 pub mod event;
 pub mod logging;
 pub mod markdown;
+pub mod scroll;
+pub mod scrollbar;
 pub mod ui;
 
 use crossterm::{
@@ -104,7 +106,7 @@ pub async fn run(api_key: String) -> Result<()> {
     // Main event loop
     while !app.should_quit {
         // Draw the current state
-        terminal.draw(|f| draw(f, &app))?;
+        terminal.draw(|f| draw(f, &mut app))?;
 
         // Process the next event
         if let Some(event) = app.next_event().await {
