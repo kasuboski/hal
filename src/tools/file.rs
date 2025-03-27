@@ -161,6 +161,10 @@ pub async fn build_tree_structure(
             continue;
         }
 
+        if name == "target" || name == "node_modules" {
+            continue;
+        }
+
         entry_list.push((path, name));
     }
 
@@ -670,7 +674,9 @@ impl Tool for ExecuteShellCommand {
             .next()
             .ok_or_else(|| FileError("Empty command".to_string()))?;
 
-        let allowed_commands = ["ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which"];
+        let allowed_commands = [
+            "ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which",
+        ];
 
         if !allowed_commands.contains(&program) {
             return Err(FileError(format!(

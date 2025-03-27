@@ -74,7 +74,7 @@ impl
             NonZeroU32::new(1000).expect("must create rate limit"),
         ));
         let completion_model = RateLimitedCompletionModel::new(
-            gemini_client.completion_model("gemini-2.0-flash-lite"),
+            gemini_client.completion_model("gemini-2.0-flash"),
             completion_limiter,
         );
         let embedding_model = RateLimitedEmbeddingModel::new(
