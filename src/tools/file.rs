@@ -105,7 +105,7 @@ impl Tool for DirectoryTree {
         result.push(root_name);
         build_tree_structure(&path, &mut result, String::from("  "), 1)
             .await
-            .map_err(|e| FileError(e))?;
+            .map_err(FileError)?;
 
         Ok(json!({
             "tree": result,
@@ -670,9 +670,7 @@ impl Tool for ExecuteShellCommand {
             .next()
             .ok_or_else(|| FileError("Empty command".to_string()))?;
 
-        let allowed_commands = vec![
-            "ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which",
-        ];
+        let allowed_commands = ["ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which"];
 
         if !allowed_commands.contains(&program) {
             return Err(FileError(format!(

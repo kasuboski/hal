@@ -5,9 +5,9 @@ use futures::future::join_all;
 use hal::tools;
 use rig::{
     agent::{Agent, AgentBuilder},
-    completion::{Chat, Completion as _, CompletionModel, PromptError, ToolDefinition},
-    message::{AssistantContent, Message},
-    tool::{ToolError, ToolSet},
+    completion::{Completion as _, CompletionModel, PromptError},
+    message::{AssistantContent, Message, ToolCall},
+    tool::ToolSet,
 };
 use tracing::instrument;
 
@@ -15,7 +15,7 @@ use tracing::instrument;
 #[tokio::main]
 async fn main() -> Result<()> {
     let _otel = hal::telemetry::init_tracing_subscriber();
-    let client = hal::model::Client::new_gemini_free_from_env();
+    let client = hal::model::Client::new_gemini_from_env();
 
     // Create toolset with all the defined tools
     let mut toolset = ToolSet::default();
@@ -92,41 +92,20 @@ where
                 println!("{}", text);
                 println!("================================================================\n\n");
 
-                loop {
-                    // keep prompting if we get tool calls
-                    if let AssistantContent::ToolCall(tool_call) = response.choice.first() {
-                        let name = tool_call.function.name.clone();
-                        let args =
-                            serde_json::to_string(&tool_call.function.arguments).map_err(|e| {
-                                PromptError::ToolError(rig::tool::ToolSetError::JsonError(e))
-                            })?;
-                        println!(
-                            "========================== Tool Call ============================"
-                        );
-                        println!("name: {}, args: {}", name, args);
-                        println!(
-                            "================================================================\n\n"
-                        );
-                        let tool_result = agent.tools.call(&name, args).await?;
-                        println!(
-                            "========================== Tool Response ============================"
-                        );
-                        println!("{tool_result}");
-                        println!(
-                            "================================================================\n\n"
-                        );
-                        chat_log.push(Message::assistant(tool_result));
+                while let AssistantContent::ToolCall(tool_call) = response.choice.first() {
+                    let tool_result = match do_tool_call(&agent.tools, &tool_call).await {
+                        Ok(tool_result) => tool_result,
+                        Err(e) => e.to_string(),
+                    };
+                    chat_log.push(Message::assistant(tool_result));
 
-                        let out = agent
-                            .completion("", chat_log.clone())
-                            .await?
-                            .tools(tool_defs.clone())
-                            .send()
-                            .await?;
-                        response = out;
-                    } else {
-                        break;
-                    }
+                    let out = agent
+                        .completion("", chat_log.clone())
+                        .await?
+                        .tools(tool_defs.clone())
+                        .send()
+                        .await?;
+                    response = out;
                 }
             }
             Err(error) => println!("Error reading input: {}", error),
@@ -141,4 +120,18 @@ fn assistant_content(content: AssistantContent) -> String {
         AssistantContent::Text(text) => text.text,
         AssistantContent::ToolCall(tool_call) => tool_call.function.name,
     }
+}
+
+async fn do_tool_call(toolset: &ToolSet, tool_call: &ToolCall) -> Result<String, PromptError> {
+    let name = tool_call.function.name.clone();
+    let args = serde_json::to_string(&tool_call.function.arguments)
+        .map_err(|e| PromptError::ToolError(rig::tool::ToolSetError::JsonError(e)))?;
+    println!("========================== Tool Call ============================");
+    println!("name: {}, args: {}", name, args);
+    println!("================================================================\n\n");
+    let tool_result = toolset.call(&name, args).await?;
+    println!("========================== Tool Response ============================");
+    println!("{tool_result}");
+    println!("================================================================\n\n");
+    Ok(tool_result)
 }
