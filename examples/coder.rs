@@ -116,6 +116,7 @@ where
                 }
                 tracing::info!("Prompt:\n{}\n", input);
 
+                // TODO: don't blow up the chat loop if the response fails
                 let response = agent
                     .completion(input, chat_log.clone())
                     .await?
@@ -126,6 +127,7 @@ where
                 chat_log.push(Message::user(input));
 
                 let mut responses = VecDeque::new();
+
                 response
                     .choice
                     .into_iter()
@@ -136,7 +138,7 @@ where
                         content: OneOrMany::one(content.clone()),
                     });
 
-                    match content {
+                    match content.clone() {
                         AssistantContent::Text(text) => {
                             let text = text.text;
 
@@ -157,27 +159,16 @@ where
                                 .await?
                                 .tools(tool_defs.clone())
                                 .send()
-                                .await?;
-                            out.choice.into_iter().for_each(|c| responses.push_back(c));
+                                .await;
+                            match out {
+                                Ok(out) => {
+                                    out.choice.into_iter().for_each(|c| responses.push_back(c));
+                                }
+                                Err(_e) => responses.push_front(content),
+                            };
                         }
                     }
                 }
-
-                // while let AssistantContent::ToolCall(tool_call) = response.choice.first() {
-                //     let tool_result = match do_tool_call(&agent.tools, &tool_call).await {
-                //         Ok(tool_result) => tool_result,
-                //         Err(e) => e.to_string(),
-                //     };
-                //     chat_log.push(Message::assistant(tool_result));
-
-                //     let out = agent
-                //         .completion("", chat_log.clone())
-                //         .await?
-                //         .tools(tool_defs.clone())
-                //         .send()
-                //         .await?;
-                //     response = out;
-                // }
             }
             Err(error) => println!("Error reading input: {}", error),
         }
