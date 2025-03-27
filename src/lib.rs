@@ -70,6 +70,8 @@ pub mod search;
 pub use error::Error;
 pub use markdown::format_markdown;
 
+pub mod telemetry;
+
 /// Re-export of types module for public use
 pub mod prelude {
     pub use crate::error::Error;

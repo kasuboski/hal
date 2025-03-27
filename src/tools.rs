@@ -11,7 +11,7 @@ pub mod code;
 pub mod file;
 pub mod project;
 
-use rig::tool::ToolSet;
+use rig::tool::{ToolDyn, ToolSet};
 
 /// Get all tools packaged in a ToolSet
 ///
@@ -21,7 +21,7 @@ use rig::tool::ToolSet;
 /// # Returns
 ///
 /// * `ToolSet` - A ToolSet containing all the available tools
-pub fn get_all_tools() -> ToolSet {
+pub fn get_full_toolset() -> ToolSet {
     ToolSet::builder()
         // Project tools
         .static_tool(project::Init)
@@ -38,4 +38,20 @@ pub fn get_all_tools() -> ToolSet {
         .static_tool(code::CodeRepoOverview)
         .static_tool(code::Search)
         .build()
+}
+
+pub fn get_all_tools() -> Vec<Box<dyn ToolDyn + 'static>> {
+    vec![
+        Box::new(project::Init),
+        Box::new(project::RequestPermission),
+        Box::new(project::Think),
+        Box::new(file::DirectoryTree),
+        Box::new(file::ShowFile),
+        Box::new(file::SearchInFile),
+        Box::new(file::EditFile),
+        Box::new(file::WriteFile),
+        Box::new(file::ExecuteShellCommand),
+        Box::new(code::CodeRepoOverview),
+        Box::new(code::Search),
+    ]
 }
