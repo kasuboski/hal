@@ -116,13 +116,18 @@ where
                 }
                 tracing::info!("Prompt:\n{}\n", input);
 
-                // TODO: don't blow up the chat loop if the response fails
-                let response = agent
+                let builder = agent
                     .completion(input, chat_log.clone())
                     .await?
-                    .tools(tool_defs.clone())
-                    .send()
-                    .await?;
+                    .tools(tool_defs.clone());
+
+                let response = match builder.send().await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        eprintln!("Error during agent completion: {}", e);
+                        continue;
+                    }
+                };
 
                 chat_log.push(Message::user(input));
 

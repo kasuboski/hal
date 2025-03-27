@@ -5,7 +5,7 @@ use rig::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::info;
 
 // Common error types - could be moved to a common module
@@ -35,7 +35,7 @@ pub struct ThoughtParams {
 }
 
 // Basic validation to prevent access to system directories
-pub fn basic_path_validation(path: &PathBuf) -> Result<(), String> {
+pub fn basic_path_validation(path: &Path) -> Result<(), String> {
     // Check for obviously dangerous paths
     let dangerous_paths = [
         "/etc",
@@ -115,14 +115,27 @@ impl Tool for Init {
         };
 
         // Log the permissions being granted
-        info!("Granting read permission for directory: {}", dir_path.display());
-        info!("Granting write permission for directory: {}", dir_path.display());
-        
+        info!(
+            "Granting read permission for directory: {}",
+            dir_path.display()
+        );
+        info!(
+            "Granting write permission for directory: {}",
+            dir_path.display()
+        );
+
         // Store the project path for future reference (though we don't have the same state management)
         info!("Project initialized: {}", path_buf.display());
 
         // Use file utility to get directory tree
-        let result = match crate::tools::file::build_tree_structure(&path_buf, &mut vec![], String::from(""), 0).await {
+        let result = match crate::tools::file::build_tree_structure(
+            &path_buf,
+            &mut vec![],
+            String::from(""),
+            0,
+        )
+        .await
+        {
             Ok(_) => {
                 // Create a new tree with the right format for display
                 let mut tree = Vec::new();
@@ -132,7 +145,14 @@ impl Tool for Init {
                     .unwrap_or_else(|| path_buf.to_string_lossy().to_string());
 
                 tree.push(root_name);
-                if let Err(e) = crate::tools::file::build_tree_structure(&path_buf, &mut tree, String::from("  "), 1).await {
+                if let Err(e) = crate::tools::file::build_tree_structure(
+                    &path_buf,
+                    &mut tree,
+                    String::from("  "),
+                    1,
+                )
+                .await
+                {
                     return Err(FileError(e));
                 }
 
@@ -142,7 +162,7 @@ impl Tool for Init {
                     "entry_count": tree.len() - 1,
                     "message": format!("Successfully retrieved directory tree for: {}", args.path)
                 }))
-            },
+            }
             Err(e) => Err(FileError(e)),
         }?;
 
@@ -167,7 +187,7 @@ impl ToolEmbedding for Init {
         vec![
             "Initialize a project directory".into(),
             "Set up permissions for a project".into(),
-            "Get a directory tree for a project".into()
+            "Get a directory tree for a project".into(),
         ]
     }
 
@@ -229,24 +249,38 @@ impl Tool for RequestPermission {
         // Log the permission request (similar to what happens in the MCP implementation)
         let message = match args.operation.as_str() {
             "read" => {
-                info!("Granting read permission for directory: {}", dir_path.display());
-                format!("Read permission granted for directory: {}", dir_path.display())
-            },
+                info!(
+                    "Granting read permission for directory: {}",
+                    dir_path.display()
+                );
+                format!(
+                    "Read permission granted for directory: {}",
+                    dir_path.display()
+                )
+            }
             "write" => {
-                info!("Granting write permission for directory: {}", dir_path.display());
-                format!("Write permission granted for directory: {}", dir_path.display())
-            },
+                info!(
+                    "Granting write permission for directory: {}",
+                    dir_path.display()
+                );
+                format!(
+                    "Write permission granted for directory: {}",
+                    dir_path.display()
+                )
+            }
             "execute" => {
                 // For execute, we're permitting a command rather than a directory
                 let command = &args.path; // In this case, "path" is actually the command
 
                 // Extract the program name
-                let program = command.split_whitespace().next()
+                let program = command
+                    .split_whitespace()
+                    .next()
                     .ok_or_else(|| FileError("Empty command".to_string()))?;
 
                 info!("Adding command to allowlist: {}", program);
                 format!("Execute permission granted for command: {}", program)
-            },
+            }
             _ => return Err(FileError(format!("Unknown operation: {}", args.operation))),
         };
 
@@ -271,7 +305,7 @@ impl ToolEmbedding for RequestPermission {
             "Request permission before performing operations".into(),
             "Grant read access to a directory".into(),
             "Grant write access to a directory".into(),
-            "Grant execution permission for a command".into()
+            "Grant execution permission for a command".into(),
         ]
     }
 
@@ -310,7 +344,7 @@ impl Tool for Think {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Log the thought
         info!("Thought: {}", args.thought);
-        
+
         // Just return success, matches the MCP implementation
         Ok(json!({
             "output": "thought complete"
@@ -331,7 +365,7 @@ impl ToolEmbedding for Think {
         vec![
             "Think through complex problems".into(),
             "Reason step by step".into(),
-            "Cache information for later use".into()
+            "Cache information for later use".into(),
         ]
     }
 

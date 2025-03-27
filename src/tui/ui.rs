@@ -2,9 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, Borders, Clear, Paragraph, Wrap,
-    },
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 use unicode_width::UnicodeWidthStr;
@@ -31,7 +29,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     // Render input field
     render_input(f, app, chunks[1]);
-    
+
     // Render status bar
     render_command_help(f, chunks[2]);
 }
@@ -51,10 +49,11 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
     // Determine visible content based on scroll position
     let content_height = app.calculate_total_height();
     let viewport_height = inner_area.height as usize;
-    
+
     // Update scroll state with current content
-    app.chat_scroll.update_content_size(content_height, viewport_height);
-    
+    app.chat_scroll
+        .update_content_size(content_height, viewport_height);
+
     // Get visible content range based on scroll position
     let scroll_offset = app.chat_scroll.position;
 
@@ -66,15 +65,15 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
 
     for (i, (role, text)) in app.rendered_messages.iter().enumerate() {
         let message_height = text.height() + 2; // +2 for role line and separator
-        
+
         // Check if this message is visible in the viewport
         let message_start = current_height;
         let message_end = current_height + message_height;
-        
+
         if message_end > scroll_offset && message_start < scroll_offset + viewport_height {
             // Process only visible messages
             _visible_message_count += 1;
-            
+
             let role_style = match role.as_str() {
                 "user" => Style::default()
                     .fg(Color::Green)
@@ -95,20 +94,23 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
             };
 
             let role_span = Span::styled(format!("{}: ", role_text), role_style);
-            
+
             // Skip lines that are above the visible area
             let lines_to_skip = scroll_offset.saturating_sub(message_start);
-            
+
             // Only add the role line if it's visible
             if lines_to_skip == 0 {
                 lines.push(Line::from(vec![role_span]));
             }
-            
+
             // Add message content lines, but only those in view
             // Handle partial message visibility
-            if lines_to_skip <= 1 { // Role line counts as 1
+            if lines_to_skip <= 1 {
+                // Role line counts as 1
                 let content_lines_to_skip = 0;
-                let visible_lines = text.lines.iter()
+                let visible_lines = text
+                    .lines
+                    .iter()
                     .skip(content_lines_to_skip)
                     .take(viewport_height.saturating_sub(lines.len()))
                     .cloned();
@@ -116,7 +118,9 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 // Skip some content lines
                 let content_lines_to_skip = lines_to_skip - 1; // -1 for role line
-                let visible_lines = text.lines.iter()
+                let visible_lines = text
+                    .lines
+                    .iter()
                     .skip(content_lines_to_skip)
                     .take(viewport_height.saturating_sub(lines.len()))
                     .cloned();
@@ -131,9 +135,9 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
                 )]));
             }
         }
-        
+
         current_height += message_height;
-        
+
         // Stop processing once we've filled the viewport
         if lines.len() >= viewport_height {
             break;
@@ -151,12 +155,11 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Render messages without scrolling - we've already windowed the content
-    let messages = Paragraph::new(lines)
-        .wrap(Wrap { trim: true });
+    let messages = Paragraph::new(lines).wrap(Wrap { trim: true });
 
     // Render messages
     f.render_widget(messages, inner_area);
-    
+
     // Render enhanced scrollbar
     render_enhanced_scrollbar(
         f.buffer_mut(),
@@ -165,7 +168,7 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
         app.chat_scroll.max_position,
         viewport_height,
     );
-    
+
     // Optional position indicator
     if app.chat_scroll.max_position > 0 {
         let position_text = format!(
@@ -173,19 +176,14 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
             app.chat_scroll.position.saturating_add(1),
             app.chat_scroll.max_position.saturating_add(1)
         );
-        
+
         let position_widget = Paragraph::new(Span::styled(
             position_text,
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(Color::DarkGray),
         ));
-        
-        let position_area = Rect::new(
-            inner_area.right() - 10,
-            inner_area.top(),
-            10,
-            1
-        );
-        
+
+        let position_area = Rect::new(inner_area.right() - 10, inner_area.top(), 10, 1);
+
         f.render_widget(position_widget, position_area);
     }
 }
@@ -210,8 +208,9 @@ fn render_input(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Update input scroll state
-    app.input_scroll.update_content_size(total_lines as usize, inner_area.height as usize);
-    
+    app.input_scroll
+        .update_content_size(total_lines as usize, inner_area.height as usize);
+
     // Get scroll offset from app state
     let scroll_offset = app.input_scroll.position as u16;
 
@@ -261,9 +260,11 @@ fn render_input(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Create input lines with Claude Code-inspired prompt
     let prompt = "> ";
-    
+
     // Create a modified input text with prompt
-    let display_lines: Vec<Line> = app.input.split('\n')
+    let display_lines: Vec<Line> = app
+        .input
+        .split('\n')
         .enumerate()
         .map(|(i, line)| {
             if i == 0 {
@@ -294,7 +295,12 @@ fn render_input(f: &mut Frame, app: &mut App, area: Rect) {
     if total_lines > inner_area.height {
         render_enhanced_scrollbar(
             f.buffer_mut(),
-            Rect::new(inner_area.right() - 1, inner_area.top(), 1, inner_area.height),
+            Rect::new(
+                inner_area.right() - 1,
+                inner_area.top(),
+                1,
+                inner_area.height,
+            ),
             app.input_scroll.position,
             app.input_scroll.max_position,
             inner_area.height as usize,
@@ -314,7 +320,10 @@ fn render_input(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     // Set cursor position
-    f.set_cursor_position((inner_area.x + adjusted_cursor_x, inner_area.y + clamped_cursor_y));
+    f.set_cursor_position((
+        inner_area.x + adjusted_cursor_x,
+        inner_area.y + clamped_cursor_y,
+    ));
 }
 
 /// Render a popup with the given title and text
@@ -358,11 +367,10 @@ pub fn render_popup(f: &mut Frame, title: &str, text: &str) {
 /// Render command help bar
 fn render_command_help(f: &mut Frame, area: Rect) {
     // Create a background block with subtle border
-    let help_block = Block::default()
-        .style(Style::default().bg(Color::Black));
-    
+    let help_block = Block::default().style(Style::default().bg(Color::Black));
+
     let inner_area = help_block.inner(area);
-    
+
     // Add status bar content with Claude Code-inspired styling
     let help_text = Line::from(vec![
         Span::styled("Alt+Enter ", Style::default().fg(Color::Yellow)),
@@ -384,27 +392,20 @@ fn render_command_help(f: &mut Frame, area: Rect) {
 
     f.render_widget(help_block, area);
     f.render_widget(help, inner_area);
-    
+
     // Add left-aligned information about current working directory
     if let Ok(cwd) = std::env::current_dir() {
         if let Some(cwd_str) = cwd.to_str() {
-            let cwd_text = Paragraph::new(
-                Line::from(vec![
-                    Span::styled("cwd: ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(cwd_str, Style::default().fg(Color::Gray)),
-                ])
-            )
+            let cwd_text = Paragraph::new(Line::from(vec![
+                Span::styled("cwd: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(cwd_str, Style::default().fg(Color::Gray)),
+            ]))
             .style(Style::default().bg(Color::Black))
             .alignment(ratatui::layout::Alignment::Left);
-            
+
             // Left-aligned area
-            let left_area = Rect::new(
-                inner_area.x + 1,
-                inner_area.y,
-                inner_area.width / 3,
-                1
-            );
-            
+            let left_area = Rect::new(inner_area.x + 1, inner_area.y, inner_area.width / 3, 1);
+
             f.render_widget(cwd_text, left_area);
         }
     }

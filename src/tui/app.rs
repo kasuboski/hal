@@ -129,11 +129,14 @@ impl App {
                                     total_lines +=
                                         (line.width() as u16).saturating_sub(1) / line_width + 1;
                                 }
-                                
+
                                 let input_height = 3; // 5 - 2 for borders
-                                
+
                                 // Update content size and then scroll up
-                                self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+                                self.input_scroll.update_content_size(
+                                    total_lines as usize,
+                                    input_height as usize,
+                                );
                                 self.input_scroll.scroll_by(-1);
 
                                 self.debug_log(&format!(
@@ -166,13 +169,16 @@ impl App {
                                     total_lines +=
                                         (line.width() as u16).saturating_sub(1) / line_width + 1;
                                 }
-                                
+
                                 let input_height = 3; // 5 - 2 for borders
-                                
+
                                 // Update content size and then scroll down
-                                self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+                                self.input_scroll.update_content_size(
+                                    total_lines as usize,
+                                    input_height as usize,
+                                );
                                 self.input_scroll.scroll_by(1);
-                                
+
                                 self.debug_log(&format!(
                                     "Manual scroll down, new position: {}",
                                     self.input_scroll.position
@@ -366,7 +372,7 @@ impl App {
 
         // Calculate total height
         let _total_height = self.calculate_total_height();
-        
+
         // Note: We'll update the scroll position in the UI rendering code
         // based on the viewport size and content height
     }
@@ -454,12 +460,12 @@ impl App {
     pub fn scroll_to_top(&mut self) {
         self.chat_scroll.scroll_to_top();
     }
-    
+
     /// Scroll to the bottom of chat history
     pub fn scroll_to_bottom(&mut self) {
         self.chat_scroll.scroll_to_bottom();
     }
-    
+
     // Remove the scroll_by method since we're now using chat_scroll.scroll_by directly
 
     /// Update spinner frame
@@ -494,7 +500,8 @@ impl App {
         let cursor_y = (current_line.width() as u16 / width + line_count as u16) as usize;
 
         // Update the scroll state with the new content size
-        self.input_scroll.update_content_size(total_lines as usize, input_height as usize);
+        self.input_scroll
+            .update_content_size(total_lines as usize, input_height as usize);
 
         // Debug log the cursor position and scroll calculations
         self.debug_log(&format!(
@@ -585,7 +592,8 @@ impl App {
         // Update scroll position to ensure cursor is visible
         if let Ok((width, _)) = crossterm::terminal::size() {
             // Set scroll position to match the clicked row
-            self.input_scroll.scroll_to(click_row.saturating_sub(1) as usize);
+            self.input_scroll
+                .scroll_to(click_row.saturating_sub(1) as usize);
             self.debug_log(&format!(
                 "Updated scroll position to {}",
                 self.input_scroll.position
