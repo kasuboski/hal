@@ -71,9 +71,12 @@ async fn main() -> Result<()> {
     let _otel = hal::telemetry::init_tracing_subscriber();
     let client = hal::model::Client::new_gemini_from_env();
 
+    // Create shared state for tools
+    let state = hal::tools::shared::State::default();
+
     // Create toolset with all the defined tools
     let mut toolset = ToolSet::default();
-    toolset.add_tools(tools::get_full_toolset());
+    toolset.add_tools(tools::get_full_toolset(state.clone()));
 
     let completion = client.completion().clone();
     let mut agent = AgentBuilder::new(completion).preamble(PROMPT).build();
@@ -94,7 +97,7 @@ where
     let mut stdout = io::stdout();
     let mut chat_log = vec![];
 
-    let tools = tools::get_all_tools();
+    let tools = tools::get_all_tools(state.clone());
     let tool_futures = tools.iter().map(|t| t.definition("".to_string()));
 
     let tool_defs = join_all(tool_futures).await;

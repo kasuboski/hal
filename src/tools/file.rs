@@ -7,12 +7,14 @@ use rig::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 // Importing common error types from project module
 use super::project::{FileError, InitError};
+use crate::tools::shared::{Executor, PermissionsRef, State};
 
 // Parameter structs for file tools
 #[derive(Deserialize)]
@@ -49,9 +51,20 @@ pub struct CommandParams {
     pub working_directory: Option<String>,
 }
 
-// DirectoryTree Tool
-#[derive(Serialize, Deserialize)]
-pub struct DirectoryTree;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DirectoryTree {
+    #[serde(skip)]
+    permissions: PermissionsRef,
+}
+
+impl DirectoryTree {
+    /// Creates a new DirectoryTree tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
+}
 
 impl Tool for DirectoryTree {
     const NAME: &'static str = "directory_tree";
@@ -210,10 +223,12 @@ pub async fn build_tree_structure(
 impl ToolEmbedding for DirectoryTree {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(DirectoryTree)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(DirectoryTree {
+            permissions: state.permissions.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
@@ -228,8 +243,20 @@ impl ToolEmbedding for DirectoryTree {
 }
 
 // ShowFile Tool
-#[derive(Serialize, Deserialize)]
-pub struct ShowFile;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ShowFile {
+    #[serde(skip)]
+    permissions: PermissionsRef,
+}
+
+impl ShowFile {
+    /// Creates a new ShowFile tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
+}
 
 impl Tool for ShowFile {
     const NAME: &'static str = "show_file";
@@ -308,10 +335,12 @@ impl Tool for ShowFile {
 impl ToolEmbedding for ShowFile {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(ShowFile)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(ShowFile {
+            permissions: state.permissions.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
@@ -326,8 +355,20 @@ impl ToolEmbedding for ShowFile {
 }
 
 // SearchInFile Tool
-#[derive(Serialize, Deserialize)]
-pub struct SearchInFile;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SearchInFile {
+    #[serde(skip)]
+    permissions: PermissionsRef,
+}
+
+impl SearchInFile {
+    /// Creates a new SearchInFile tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
+}
 
 impl Tool for SearchInFile {
     const NAME: &'static str = "search_in_file";
@@ -414,10 +455,12 @@ impl Tool for SearchInFile {
 impl ToolEmbedding for SearchInFile {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(SearchInFile)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(SearchInFile {
+            permissions: state.permissions.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
@@ -432,8 +475,20 @@ impl ToolEmbedding for SearchInFile {
 }
 
 // EditFile Tool
-#[derive(Serialize, Deserialize)]
-pub struct EditFile;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct EditFile {
+    #[serde(skip)]
+    permissions: PermissionsRef,
+}
+
+impl EditFile {
+    /// Creates a new EditFile tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
+}
 
 impl Tool for EditFile {
     const NAME: &'static str = "edit_file";
@@ -507,10 +562,12 @@ impl Tool for EditFile {
 impl ToolEmbedding for EditFile {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(EditFile)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(EditFile {
+            permissions: state.permissions.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
@@ -525,8 +582,20 @@ impl ToolEmbedding for EditFile {
 }
 
 // WriteFile Tool
-#[derive(Serialize, Deserialize)]
-pub struct WriteFile;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct WriteFile {
+    #[serde(skip)]
+    permissions: PermissionsRef,
+}
+
+impl WriteFile {
+    /// Creates a new WriteFile tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
+}
 
 impl Tool for WriteFile {
     const NAME: &'static str = "write_file";
@@ -615,10 +684,12 @@ impl Tool for WriteFile {
 impl ToolEmbedding for WriteFile {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(WriteFile)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(WriteFile {
+            permissions: state.permissions.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
@@ -633,8 +704,65 @@ impl ToolEmbedding for WriteFile {
 }
 
 // ExecuteShellCommand Tool
-#[derive(Serialize, Deserialize)]
-pub struct ExecuteShellCommand;
+#[derive(Clone)]
+pub struct ExecuteShellCommand {
+    permissions: PermissionsRef,
+    executor: Arc<dyn Executor + Send + Sync>,
+}
+
+impl ExecuteShellCommand {
+    /// Creates a new ExecuteShellCommand tool with the given state
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+            executor: state.executor,
+        }
+    }
+}
+
+impl Serialize for ExecuteShellCommand {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Serialize as an empty struct
+        let state = serializer.serialize_struct("ExecuteShellCommand", 0)?;
+        serde::ser::SerializeStruct::end(state)
+    }
+}
+
+impl<'de> Deserialize<'de> for ExecuteShellCommand {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Use a State instance to create a properly initialized ExecuteShellCommand
+        struct ExecuteShellCommandVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ExecuteShellCommandVisitor {
+            type Value = ExecuteShellCommand;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct ExecuteShellCommand")
+            }
+
+            fn visit_map<V>(self, _map: V) -> Result<ExecuteShellCommand, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                // Create a default State and use it to create the ExecuteShellCommand
+                let state = crate::tools::shared::State::default();
+                Ok(ExecuteShellCommand::new(state))
+            }
+        }
+
+        deserializer.deserialize_struct(
+            "ExecuteShellCommand",
+            &[],
+            ExecuteShellCommandVisitor,
+        )
+    }
+}
 
 impl Tool for ExecuteShellCommand {
     const NAME: &'static str = "execute_shell_command";
@@ -739,10 +867,13 @@ impl Tool for ExecuteShellCommand {
 impl ToolEmbedding for ExecuteShellCommand {
     type InitError = InitError;
     type Context = ();
-    type State = ();
+    type State = State;
 
-    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
-        Ok(ExecuteShellCommand)
+    fn init(state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(ExecuteShellCommand {
+            permissions: state.permissions.clone(),
+            executor: state.executor.clone(),
+        })
     }
 
     fn embedding_docs(&self) -> Vec<String> {
