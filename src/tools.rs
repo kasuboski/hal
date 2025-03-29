@@ -42,6 +42,10 @@ pub fn get_full_toolset(state: &State) -> ToolSet {
                 .expect("Failed to initialize project::Init tool"),
         )
         .static_tool(
+            project::Finish::init(state.clone(), ())
+                .expect("Failed to initialize project::Finish tool"),
+        )
+        .static_tool(
             project::RequestPermission::init(state.clone(), ())
                 .expect("Failed to initialize project::RequestPermission tool"),
         )
@@ -103,6 +107,10 @@ pub fn get_all_tools(state: &State) -> Vec<Box<dyn ToolDyn + 'static>> {
         Box::new(
             project::Init::init(state.clone(), ())
                 .expect("Failed to initialize project::Init tool"),
+        ),
+        Box::new(
+            project::Finish::init(state.clone(), ())
+                .expect("Failed to initialize project::Finish tool"),
         ),
         Box::new(
             project::RequestPermission::init(state.clone(), ())

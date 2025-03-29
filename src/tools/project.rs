@@ -389,3 +389,69 @@ impl ToolEmbedding for Think {
 
     fn context(&self) -> Self::Context {}
 }
+
+#[derive(Serialize, Deserialize, Clone)] // Added Clone
+pub struct Finish;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct FinishParams {
+    pub summary: String,
+}
+
+impl Tool for Finish {
+    const NAME: &'static str = "finish";
+
+    type Error = FileError; // Keep FileError for consistency, though it won't be used
+    type Args = FinishParams;
+    type Output = serde_json::Value;
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        serde_json::from_value(json!({
+            "name": "finish",
+            "description": "Finish the task by summarizing the results. This tool will end the current conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "The summary of the task process and results."
+                    }
+                },
+                "required": ["summary"]
+            }
+        }))
+        .expect("Tool Definition")
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Log the summary using tracing
+        info!(summary = %args.summary, "finish tool called");
+
+        // Return success, no external effects
+        Ok(json!({
+            "output": "summary logged successfully."
+        }))
+    }
+}
+
+impl ToolEmbedding for Finish {
+    type InitError = InitError;
+    type Context = ();
+    // We can use the shared State type but just ignore it in init.
+    type State = State;
+
+    // Init takes state but doesn't store it
+    fn init(_state: Self::State, _context: Self::Context) -> Result<Self, Self::InitError> {
+        Ok(Finish)
+    }
+
+    fn embedding_docs(&self) -> Vec<String> {
+        vec![
+            "End the conversation".into(),
+            "Summarize the results".into(),
+            "Summarize the task process".into(), // Updated doc string
+        ]
+    }
+
+    fn context(&self) -> Self::Context {}
+}
