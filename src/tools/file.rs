@@ -10,10 +10,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
 
 // Importing common error types from project module
-use super::project::{FileError, InitError};
+use super::error::{FileError, InitError};
 use crate::tools::shared::{Executor, PermissionsRef, State};
 
 // Parameter structs for file tools
@@ -756,11 +755,7 @@ impl<'de> Deserialize<'de> for ExecuteShellCommand {
             }
         }
 
-        deserializer.deserialize_struct(
-            "ExecuteShellCommand",
-            &[],
-            ExecuteShellCommandVisitor,
-        )
+        deserializer.deserialize_struct("ExecuteShellCommand", &[], ExecuteShellCommandVisitor)
     }
 }
 
@@ -795,72 +790,25 @@ impl Tool for ExecuteShellCommand {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let command_str = &args.command;
+        let working_dir_clone = args.working_directory.clone();
+        let working_dir = args.working_directory.map(PathBuf::from);
 
-        // Check if command is safe (simple allowlist of safe commands)
-        let program = command_str
-            .split_whitespace()
-            .next()
-            .ok_or_else(|| FileError("Empty command".to_string()))?;
-
-        let allowed_commands = [
-            "ls", "cat", "grep", "find", "echo", "pwd", "wc", "head", "tail", "which",
-        ];
-
-        if !allowed_commands.contains(&program) {
-            return Err(FileError(format!(
-                "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
-                program
-            )));
-        }
-
-        // Create command using the detected shell
-        let shell = if cfg!(target_os = "windows") {
-            "cmd"
-        } else {
-            "sh"
-        };
-
-        let shell_args = if cfg!(target_os = "windows") {
-            vec!["/C", command_str]
-        } else {
-            vec!["-c", command_str]
-        };
-
-        // Set up the command
-        let mut command = Command::new(shell);
-        command.args(&shell_args);
-
-        // Set working directory if specified
-        if let Some(ref dir) = args.working_directory {
-            let path = PathBuf::from(dir);
-
-            // Verify path exists and is a directory
-            if !path.exists() || !path.is_dir() {
-                return Err(FileError(format!("Invalid working directory: {}", dir)));
-            }
-
-            command.current_dir(path);
-        }
-
-        // Execute command
-        let output = command
-            .output()
+        // Use the executor from self
+        match self
+            .executor
+            .execute(command_str.clone(), working_dir.as_deref())
             .await
-            .map_err(|e| FileError(format!("Failed to execute command: {}", e)))?;
-
-        // Parse output
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let exit_code = output.status.code().unwrap_or(-1);
-
-        Ok(json!({
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": exit_code,
-            "command": args.command,
-            "working_directory": args.working_directory,
-            "success": exit_code == 0
-        }))
+        {
+            Ok(result) => Ok(json!({
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "exit_code": result.exit_code,
+                "command": args.command,
+                "working_directory": working_dir_clone,
+                "success": result.exit_code == 0
+            })),
+            Err(e) => Err(FileError(format!("Command execution failed: {}", e))),
+        }
     }
 }
 

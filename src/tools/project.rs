@@ -8,14 +8,7 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
-// Common error types - could be moved to a common module
-#[derive(Debug, thiserror::Error)]
-#[error("File operation error: {0}")]
-pub struct FileError(pub String);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Init error")]
-pub struct InitError;
+use super::error::{FileError, InitError};
 
 // Parameter structs for project tools
 #[derive(Deserialize)]

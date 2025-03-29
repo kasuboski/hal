@@ -69,27 +69,30 @@ Otherwise, follow debugging best practices:
 #[tokio::main]
 async fn main() -> Result<()> {
     let _otel = hal::telemetry::init_tracing_subscriber();
-    let client = hal::model::Client::new_gemini_from_env();
+    let client = hal::model::Client::new_gemini_free_from_env();
 
     // Create shared state for tools
     let state = hal::tools::shared::State::default();
 
     // Create toolset with all the defined tools
     let mut toolset = ToolSet::default();
-    toolset.add_tools(tools::get_full_toolset(state.clone()));
+    toolset.add_tools(tools::get_full_toolset(&state.clone()));
 
     let completion = client.completion().clone();
     let mut agent = AgentBuilder::new(completion).preamble(PROMPT).build();
     agent.tools = toolset;
 
     // Start the CLI chatbot
-    cli_chatbot(agent).await?;
+    cli_chatbot(agent, &state).await?;
 
     Ok(())
 }
 
-#[instrument(skip(agent))]
-pub async fn cli_chatbot<C>(agent: Agent<C>) -> Result<(), PromptError>
+#[instrument(skip(agent, state))]
+pub async fn cli_chatbot<C>(
+    agent: Agent<C>,
+    state: &hal::tools::shared::State,
+) -> Result<(), PromptError>
 where
     C: CompletionModel,
 {
@@ -97,7 +100,7 @@ where
     let mut stdout = io::stdout();
     let mut chat_log = vec![];
 
-    let tools = tools::get_all_tools(state.clone());
+    let tools = tools::get_all_tools(&state.clone());
     let tool_futures = tools.iter().map(|t| t.definition("".to_string()));
 
     let tool_defs = join_all(tool_futures).await;

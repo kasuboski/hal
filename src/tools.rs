@@ -7,6 +7,7 @@
 //! - File tools: For file system operations like reading, writing, and searching
 //! - Code tools: For code analysis and search operations
 
+pub mod error;
 pub mod executor;
 pub mod permissions;
 pub mod shared;
@@ -23,13 +24,13 @@ use rig::tool::{ToolDyn, ToolSet};
 /// This can be used to initialize an agent with static tools.
 ///
 /// # Parameters
-/// 
+///
 /// * `state` - A shared state instance that tools can use for permissions and execution
 ///
 /// # Returns
 ///
 /// * `ToolSet` - A ToolSet containing all the available tools
-pub fn get_full_toolset(state: shared::State) -> ToolSet {
+pub fn get_full_toolset(state: &shared::State) -> ToolSet {
     ToolSet::builder()
         // Project tools
         .static_tool(project::Init)
@@ -48,7 +49,7 @@ pub fn get_full_toolset(state: shared::State) -> ToolSet {
         .build()
 }
 
-pub fn get_all_tools(state: shared::State) -> Vec<Box<dyn ToolDyn + 'static>> {
+pub fn get_all_tools(state: &shared::State) -> Vec<Box<dyn ToolDyn + 'static>> {
     vec![
         Box::new(project::Init),
         Box::new(project::RequestPermission),
