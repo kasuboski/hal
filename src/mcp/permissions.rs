@@ -36,6 +36,12 @@ pub struct SessionPermissions {
     allowed_commands: HashSet<String>,
 }
 
+impl Default for SessionPermissions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionPermissions {
     pub fn new() -> Self {
         // Default allowed shell commands

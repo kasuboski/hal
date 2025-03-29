@@ -75,7 +75,7 @@ impl Executor for ShellExecutor {
 
         // Create command using the detected shell
         let mut command = TokioCommand::new(&shell);
-        command.args(&["-c", &command_str]);
+        command.args(["-c", &command_str]);
 
         // Set working directory if specified
         if let Some(dir) = working_dir {
@@ -146,7 +146,7 @@ async fn get_macos_shell() -> Option<String> {
     let user_path = format!("/Users/{}", username);
 
     let output = TokioCommand::new("dscl")
-        .args(&[".", "-read", &user_path, "UserShell"])
+        .args([".", "-read", &user_path, "UserShell"])
         .output()
         .await
         .ok()?;

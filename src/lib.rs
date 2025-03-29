@@ -59,6 +59,7 @@ mod error;
 mod markdown;
 pub mod mcp;
 pub mod model;
+pub mod tools;
 
 // RAG feature modules
 pub mod crawler;
@@ -68,6 +69,8 @@ pub mod search;
 
 pub use error::Error;
 pub use markdown::format_markdown;
+
+pub mod telemetry;
 
 /// Re-export of types module for public use
 pub mod prelude {
