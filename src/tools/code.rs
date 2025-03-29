@@ -9,10 +9,9 @@ use std::path::PathBuf;
 use tokio::task;
 use tracing::info;
 
-// Importing common error types from project module
 use super::{
     error::{FileError, InitError},
-    file::basic_path_validation,
+    permissions::basic_path_validation,
     project::PathParam,
 };
 
