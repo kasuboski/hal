@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     io::{self, Write as _},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -9,11 +10,14 @@ use hal::tools;
 
 use rig::{
     agent::{Agent, AgentBuilder},
-    completion::{Completion as _, CompletionError, CompletionModel, PromptError},
-    message::{self, AssistantContent, Message, ToolCall, ToolResultContent, UserContent},
+    completion::{Completion as _, CompletionError, CompletionModel, PromptError, ToolDefinition},
+    message::{
+        self, AssistantContent, Message, ToolCall, ToolResult, ToolResultContent, UserContent,
+    },
     tool::ToolSet,
     OneOrMany,
 };
+use tokio::time;
 use tracing::instrument;
 
 const PRO_PROMPT: &str = r"You are a tech lead pairing with a USER and junior developer.
@@ -55,8 +59,9 @@ You have tools at your disposal to solve the coding task. Follow these rules reg
 2. The conversation may reference tools that are no longer available. NEVER call tools that are not explicitly provided.
 3. **NEVER refer to tool names when speaking to the USER.** For example, instead of saying 'I need to use the edit_file tool to edit your file', just say 'I will edit your file'.
 4. Only calls tools when they are necessary. If the USER's task is general or you already know the answer, just respond without calling tools.
-5. Before calling each tool, first explain to the USER why you are calling it.
-6. When you completed the task, call the 'finish' tool to end YOUR turn.
+5. NEVER call the same tool twice with the same parameters in a row.
+6. Before calling each tool, first explain to the USER why you are calling it.
+7. Call the 'finish' tool to end YOUR turn when you've completed the task.
 </tool_calling>
 <search_and_reading>
 If you are unsure about the answer to the USER's request or how to satiate their request, you should gather more information.
@@ -92,7 +97,7 @@ Otherwise, follow debugging best practices:
 async fn main() -> Result<()> {
     let _otel = hal::telemetry::init_tracing_subscriber();
     let pro = hal::model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
-    let client = hal::model::Client::new_gemini_free_from_env();
+    let client = hal::model::Client::new_gemini_from_env();
 
     let pro_completion = pro.completion().clone();
     let pro_agent = pro_completion.agent().preamble(PRO_PROMPT).build();
@@ -110,6 +115,8 @@ async fn main() -> Result<()> {
 
     // Start the CLI chatbot
     cli_chatbot(pro_agent, agent, &state).await?;
+
+    time::sleep(Duration::from_secs(1)).await;
 
     Ok(())
 }
@@ -164,96 +171,14 @@ where
                 println!("{}", plan.clone());
                 println!("================================================================\n\n");
 
-                let mut responses = VecDeque::new();
-
-                let mut junior_log = vec![];
-                let prompt = format!("<user_task>{plan}</user_task>");
-                let junior = agent
-                    .completion(prompt.clone(), junior_log.clone())
-                    .await?
-                    .tools(tool_defs.clone())
-                    .send()
-                    .await?;
-                junior_log.push(Message::user(&prompt));
-
-                junior
-                    .choice
-                    .into_iter()
-                    .for_each(|c| responses.push_back(c));
-                'junior: for _i in 0..50 {
-                    while let Some(content) = responses.pop_front() {
-                        junior_log.push(Message::Assistant {
-                            content: OneOrMany::one(content.clone()),
-                        });
-
-                        match content.clone() {
-                            AssistantContent::Text(text) => {
-                                let text = text.text;
-
-                                println!(
-                                "========================== Response ============================"
-                            );
-                                println!("{}", text);
-                                println!("================================================================\n\n");
-                            }
-                            AssistantContent::ToolCall(tool_call) => {
-                                let id = tool_call.id.clone();
-                                let tool_result = match do_tool_call(&agent.tools, &tool_call).await
-                                {
-                                    Ok(tool_result) => tool_result,
-                                    Err(e) => e.to_string(),
-                                };
-                                let tool_message = Message::User {
-                                    content: OneOrMany::one(UserContent::ToolResult(
-                                        message::ToolResult {
-                                            id,
-                                            content: OneOrMany::one(ToolResultContent::text(
-                                                tool_result,
-                                            )),
-                                        },
-                                    )),
-                                };
-                                junior_log.push(tool_message);
-
-                                if tool_call.function.name == "finish" {
-                                    break 'junior;
-                                }
-                                // react to the tool call
-                                let out = agent
-                                    .completion("", junior_log.clone())
-                                    .await?
-                                    .tools(tool_defs.clone())
-                                    .send()
-                                    .await;
-                                match out {
-                                    Ok(out) => {
-                                        out.choice.into_iter().for_each(|c| responses.push_back(c));
-                                    }
-                                    Err(_e) => responses.push_front(content),
-                                };
-                            }
-                        }
-                    }
-                    let out = agent
-                        .completion("", junior_log.clone())
-                        .await?
-                        .tools(tool_defs.clone())
-                        .send()
-                        .await;
-                    match out {
-                        Ok(out) => {
-                            out.choice.into_iter().for_each(|c| responses.push_back(c));
-                        }
-                        Err(_e) => (), // try again on next iteration
-                    };
-                }
+                let junior_log = junior_solve(&agent, &tool_defs, &plan).await?;
                 // pro_agent analzyes results and decides what to do next
                 let junior_info = junior_log
                     .iter()
                     .map(message_to_string)
                     .collect::<Vec<String>>()
                     .join("\n");
-                let prompt = format!("Analyze the implementation of the plan by the junior developer:\n<junior_developer>{junior_info}</junior_developer>");
+                let prompt = format!("Analyze the implementation of the plan by the junior developer:\n<junior_developer>{junior_info}</junior_developer>\nThe developer should have called the finish tool when complete.");
                 let analysis = match pro_completion(&pro_agent, &prompt, &chat_log).await {
                     Ok(analysis) => analysis,
                     Err(_e) => {
@@ -273,6 +198,111 @@ where
     Ok(())
 }
 
+#[instrument(skip(agent, tool_defs))]
+async fn junior_solve<C>(
+    agent: &Agent<C>,
+    tool_defs: &[ToolDefinition],
+    plan: &str,
+) -> Result<Vec<Message>, PromptError>
+where
+    C: CompletionModel,
+{
+    let mut responses = VecDeque::new();
+
+    let mut junior_log = vec![];
+    let prompt = format!("<user_task>{plan}</user_task>");
+    let junior = agent
+        .completion(prompt.clone(), junior_log.clone())
+        .await?
+        .tools(tool_defs.into())
+        .send()
+        .await?;
+    junior_log.push(Message::user(&prompt));
+
+    junior
+        .choice
+        .into_iter()
+        .for_each(|c| responses.push_back(c));
+    'junior: for _i in 0..50 {
+        let mut response_count = 0;
+        while let Some(content) = responses.pop_front() {
+            junior_log.push(Message::Assistant {
+                content: OneOrMany::one(content.clone()),
+            });
+
+            match content.clone() {
+                AssistantContent::Text(text) => {
+                    let text = text.text;
+
+                    println!("========================== Response ============================");
+                    println!("{}", text);
+                    println!(
+                        "================================================================\n\n"
+                    );
+                }
+                AssistantContent::ToolCall(tool_call) => {
+                    let id = tool_call.id.clone();
+                    let mut tool_result = match do_tool_call(&agent.tools, &tool_call).await {
+                        Ok(tool_result) => tool_result,
+                        Err(e) => e.to_string(),
+                    };
+                    if tool_result.is_empty() {
+                        tool_result = "Tool returned no result".to_string();
+                    }
+                    let tool_message = Message::User {
+                        content: OneOrMany::one(UserContent::ToolResult(message::ToolResult {
+                            id,
+                            content: OneOrMany::one(ToolResultContent::text(tool_result)),
+                        })),
+                    };
+                    junior_log.push(tool_message);
+
+                    if tool_call.function.name == "finish" {
+                        break 'junior;
+                    }
+
+                    if response_count > 40 {
+                        break 'junior;
+                    }
+                    // react to the tool call
+                    let out = agent
+                        .completion("", junior_log.clone())
+                        .await?
+                        .tools(tool_defs.into())
+                        .send()
+                        .await;
+                    response_count += 1;
+                    match out {
+                        Ok(out) => {
+                            out.choice.into_iter().for_each(|c| responses.push_back(c));
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "error reacting to tool response");
+                            responses.push_front(content)
+                        }
+                    };
+                }
+            }
+        }
+        let continue_prompt = "Have you solved the task? If not, continue solving the task. If you have solved the task, call the 'finish' tool to end your turn.";
+        let out = agent
+            .completion(continue_prompt, junior_log.clone())
+            .await?
+            .tools(tool_defs.into())
+            .send()
+            .await;
+        junior_log.push(Message::user(continue_prompt));
+        match out {
+            Ok(out) => {
+                out.choice.into_iter().for_each(|c| responses.push_back(c));
+            }
+            Err(_e) => (), // try again on next iteration
+        };
+    }
+
+    Ok(junior_log)
+}
+
 #[instrument(skip(pro_agent))]
 async fn pro_completion<C>(
     pro_agent: &Agent<C>,
@@ -285,24 +315,19 @@ where
     let builder = pro_agent.completion(prompt, history.into()).await?;
 
     let analysis = match builder.send().await {
-        Ok(response) => {
-            response
-                .choice
-                .into_iter()
-                .filter_map(|c| {
-                    if let AssistantContent::Text(text) = c {
-                        if text.text.contains("%TASK_COMPLETE%") {
-                            return None;
-                        }
-                        Some(text.text)
-                    } else {
-                        eprintln!("Pro tried to use tool: {:?}", c);
-                        None
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("\n")
-        }
+        Ok(response) => response
+            .choice
+            .into_iter()
+            .filter_map(|c| {
+                if let AssistantContent::Text(text) = c {
+                    Some(text.text)
+                } else {
+                    eprintln!("Pro tried to use tool: {:?}", c);
+                    None
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("\n"),
         Err(e) => {
             eprintln!("Error during pro agent completion: {}", e);
             return Err(e);
@@ -334,6 +359,9 @@ fn message_to_string(message: &Message) -> String {
                 .iter()
                 .map(|c| match c {
                     UserContent::Text(text) => text.text.clone(),
+                    UserContent::ToolResult(ToolResult { id, content }) => {
+                        format!("Tool Result: {:?} {:?}", id, content)
+                    }
                     _ => "message type not supported".to_string(),
                 })
                 .collect::<Vec<String>>()
