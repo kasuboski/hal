@@ -305,7 +305,7 @@ pub fn chunk_markdown(
 ///
 /// The position to split the text at
 fn find_split_point(
-    text: &Vec<String>,
+    text: &[String],
     target_size: usize,
     paragraph_breaks: &[usize],
     code_block_boundaries: &[usize],
