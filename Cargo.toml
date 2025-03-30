@@ -44,6 +44,7 @@ quick-xml = { version = "0.37.2", features = ["serialize"] }
 mcpr = { git = "https://github.com/conikeec/mcpr", rev = "95052a673adaf7a900003b55a1b121d935b70a41" }
 async-trait = "0.1"
 yek = "0.21.0"
+async-stream = "0.3.6"
 
 [dev-dependencies]
 mockito = "1.0"

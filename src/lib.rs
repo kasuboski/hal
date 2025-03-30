@@ -55,6 +55,7 @@
 //! }
 //! ```
 
+pub mod coder;
 mod error;
 mod markdown;
 pub mod mcp;
@@ -67,6 +68,7 @@ pub mod index;
 pub mod processor;
 pub mod search;
 
+pub use coder::{run_coder_session, CoderConfig, CoderError, CoderEvent};
 pub use error::Error;
 pub use markdown::format_markdown;
 
