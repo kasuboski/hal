@@ -1,6 +1,6 @@
 // examples/coder.rs
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::pin_mut;
 use lazy_static::lazy_static;
 use std::io::Write;
@@ -126,7 +126,11 @@ use hal::{
     telemetry,
     tools,
 };
-use rig::{completion::ToolDefinition, message::Message, tool::ToolSet};
+use rig::{
+    completion::ToolDefinition,
+    message::Message,
+    tool::{Tool as _, ToolSet},
+};
 use std::{io, time::Duration}; // Added Arc
 use tokio::time;
 use tracing::instrument; // Keep instrument for main
@@ -215,19 +219,6 @@ async fn main() -> Result<()> {
     let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
     let junior_client = model::Client::new_gemini_free_from_env();
 
-    // Create Agents
-    let pro_agent = pro_client
-        .completion()
-        .clone()
-        .agent()
-        .preamble(PRO_PROMPT)
-        .build();
-    let junior_agent_builder = junior_client
-        .completion()
-        .clone()
-        .agent()
-        .preamble(JUNIOR_PROMPT);
-
     // Create shared state for tools
     let tool_state = tools::shared::State::default();
 
@@ -238,6 +229,33 @@ async fn main() -> Result<()> {
     let all_tools_dyn = tools::get_all_tools(&tool_state); // Get Vec<Box<dyn ToolDyn>>
     let tool_defs_futures = all_tools_dyn.iter().map(|t| t.definition("".to_string()));
     let tool_defs: Vec<ToolDefinition> = futures::future::join_all(tool_defs_futures).await;
+
+    let init_tool = tools::project::Init::new(tool_state.clone());
+    let init = init_tool
+        .call(".".into())
+        .await
+        .context("couldn't get directory_tree")?;
+
+    let tree = serde_json::to_string(init.get("directory_tree").unwrap())
+        .context("couldn't serialize directory_tree")?;
+    let project_info = format!(
+        "You are working in a project directory. The directory tree is as follows:\n{}",
+        tree
+    );
+
+    // Create Agents
+    let pro_agent = pro_client
+        .completion()
+        .clone()
+        .agent()
+        .preamble(PRO_PROMPT)
+        .append_preamble(project_info.as_str())
+        .build();
+    let junior_agent_builder = junior_client
+        .completion()
+        .clone()
+        .agent()
+        .preamble(JUNIOR_PROMPT);
 
     // Finish building junior agent with tools
     let mut junior_agent = junior_agent_builder.build();

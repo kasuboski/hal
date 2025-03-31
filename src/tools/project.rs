@@ -19,6 +19,34 @@ pub struct PathParam {
     pub path: String,
 }
 
+impl From<String> for PathParam {
+    fn from(value: String) -> Self {
+        Self { path: value }
+    }
+}
+
+impl From<&str> for PathParam {
+    fn from(value: &str) -> Self {
+        Self {
+            path: value.to_string(),
+        }
+    }
+}
+
+impl From<PathBuf> for PathParam {
+    fn from(value: PathBuf) -> Self {
+        Self {
+            path: value.to_string_lossy().to_string(),
+        }
+    }
+}
+
+impl PathParam {
+    pub fn new(path: impl Into<String>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct PermissionParams {
     pub operation: String, // "read", "write", "execute"
@@ -44,6 +72,14 @@ pub struct Init {
     // Let's omit it for now unless explicitly needed later.
     // #[serde(skip)]
     // project_path_state: Arc<tokio::sync::Mutex<Option<String>>>,
+}
+
+impl Init {
+    pub fn new(state: crate::tools::shared::State) -> Self {
+        Self {
+            permissions: state.permissions,
+        }
+    }
 }
 
 impl Tool for Init {

@@ -161,8 +161,8 @@ where
     let mut events = Vec::new();
     let mut responses = VecDeque::new();
 
-    let initial_prompt = format!("<user_task>{}</user_task>", plan);
-    junior_log.push(Message::user(&initial_prompt));
+    let initial_prompt = format!("<user_task>{}</user_task>\nDo NOTHING else.", plan);
+
     debug!(prompt = initial_prompt, "Sending initial task to Junior");
 
     // Initial call to Junior
@@ -174,6 +174,7 @@ where
         .send()
         .await
         .map_err(CoderError::CompletionError)?;
+    junior_log.push(Message::user(&initial_prompt));
 
     initial_response
         .choice
