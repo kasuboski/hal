@@ -1,7 +1,125 @@
 // examples/coder.rs
 
 use anyhow::Result;
-use futures::{pin_mut, stream::StreamExt};
+use futures::pin_mut;
+use lazy_static::lazy_static;
+use std::io::Write;
+use std::sync::Mutex;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use tokio_stream::StreamExt as _;
+lazy_static! {
+    static ref STDOUT: Mutex<StandardStream> =
+        Mutex::new(StandardStream::stdout(ColorChoice::Auto));
+}
+
+// Helper function to print colored text
+fn print_colored(text: &str, color: Color, bold: bool) {
+    let mut stdout = STDOUT.lock().unwrap();
+    stdout
+        .set_color(ColorSpec::new().set_fg(Some(color)).set_bold(bold))
+        .unwrap();
+    write!(stdout, "{}", text).unwrap();
+    stdout.reset().unwrap();
+}
+
+// Helper function to print a styled header
+fn print_header(text: &str, color: Color) {
+    println!();
+    print_colored(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        color,
+        true,
+    );
+    println!();
+    print_colored("  ", Color::White, false);
+    print_colored(text, color, true);
+    println!();
+    print_colored(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        color,
+        true,
+    );
+    println!();
+}
+
+// Helper function to print a separator
+fn print_separator(color: Color) {
+    print_colored(
+        "────────────────────────────────────────────────────────────────────────────────",
+        color,
+        false,
+    );
+    println!();
+}
+
+// Helper functions for specific event types
+fn print_pro_plan(plan: &str) {
+    println!();
+    print_colored("[Tech Lead Plan]", Color::Magenta, true);
+    println!();
+    print_colored("  ", Color::White, false);
+    println!("  {}", plan);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_junior_thought(thought: &str) {
+    println!();
+    print_colored("[Junior Developer Thought]", Color::Blue, true);
+    println!();
+    print_colored("  ", Color::White, false);
+    println!("{}", thought);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_tool_call(name: &str, args: &str) {
+    println!();
+    print_colored("[Junior Tool Call]", Color::Yellow, true);
+    println!();
+    print_colored("  Tool: ", Color::Rgb(150, 150, 150), false);
+    println!("{}", name);
+    print_colored("  Args: ", Color::Rgb(150, 150, 150), false);
+    println!("{}", args);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_tool_result(tool_name: &str, result: &str) {
+    println!();
+    print_colored("[Junior Tool Result (", Color::Yellow, true);
+    print_colored(tool_name, Color::Yellow, true);
+    print_colored(")]", Color::Yellow, true);
+    println!();
+    print_colored("  ", Color::White, false);
+    println!("{}", result);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_junior_error(error: &str) {
+    println!();
+    print_colored("[Junior Error]", Color::Red, true);
+    println!();
+    print_colored("  ", Color::Red, false);
+    println!("{}", error);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_analysis(analysis: &str) {
+    println!();
+    print_colored("[Tech Lead Analysis]", Color::Cyan, true);
+    println!();
+    print_colored("  ", Color::White, false);
+    println!("{}", analysis);
+    print_separator(Color::Rgb(100, 100, 100));
+}
+
+fn print_session_error(error: &str) {
+    println!();
+    print_colored("[FATAL SESSION ERROR]", Color::Red, true);
+    println!();
+    print_colored("  ", Color::Red, false);
+    println!("{}", error);
+    print_separator(Color::Red);
+}
+
 use hal::{
     coder::{run_coder_session, CoderConfig, CoderEvent}, // Use new imports
     model,
@@ -9,10 +127,7 @@ use hal::{
     tools,
 };
 use rig::{completion::ToolDefinition, message::Message, tool::ToolSet};
-use std::{
-    io::{self, Write as _},
-    time::Duration,
-}; // Added Arc
+use std::{io, time::Duration}; // Added Arc
 use tokio::time;
 use tracing::instrument; // Keep instrument for main
 
@@ -39,6 +154,7 @@ You will break the loop when the USER's request is complete. Break the loop by o
 const JUNIOR_PROMPT: &str = r"You are a powerful agentic aicoder.
 You are pair programming with a USER to solve their coding task.
 Your main goal is to follow the USER's instructions at each message.
+Do ONLY what the USER asks. Do NOTHING else.
 IMPORTANT: Call the 'finish' tool to end your turn. Call 'finish' either when the task is complete or when you aren't making progress.
 You can also call 'finish' if you need more information.
 <communication>
@@ -97,7 +213,7 @@ async fn main() -> Result<()> {
     // --- Setup ---
     let _otel = telemetry::init_tracing_subscriber();
     let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
-    let junior_client = model::Client::new_gemini_from_env();
+    let junior_client = model::Client::new_gemini_free_from_env();
 
     // Create Agents
     let pro_agent = pro_client
@@ -141,28 +257,38 @@ async fn main() -> Result<()> {
     // chat_log holds the history *between* user inputs
     let mut chat_log: Vec<Message> = vec![];
 
-    println!("Welcome to the HAL Coder Assistant! Type 'exit' to quit.");
+    print_header("Welcome to the HAL Coder Assistant", Color::Cyan);
+    print_colored("• ", Color::Green, true);
+    print_colored(
+        "Type your coding requests and press Enter.\n",
+        Color::White,
+        false,
+    );
+    print_colored("• ", Color::Yellow, true);
+    print_colored("Type 'exit' to quit.\n", Color::White, false);
+    print_separator(Color::Blue);
 
     loop {
-        print!("> ");
+        print_colored("> ", Color::Green, true);
         stdout.flush().unwrap(); // Ensure prompt is shown
 
         let mut user_input = String::new();
         if stdin.read_line(&mut user_input)? == 0 {
             // Handle EOF (Ctrl+D)
-            println!("\nExiting...");
+            print_colored("\nExiting...\n", Color::Cyan, true);
             break;
         }
         let user_input = user_input.trim();
 
         if user_input == "exit" {
+            print_colored("\nExiting...\n", Color::Cyan, true);
             break;
         }
         if user_input.is_empty() {
             continue;
         }
 
-        println!("--- Running Coder Session ---");
+        print_header("Running Coder Session", Color::Blue);
 
         // --- Call the Coder Module ---
         // Pass the *current* chat_log and the *new* user_input
@@ -180,56 +306,41 @@ async fn main() -> Result<()> {
         while let Some(event) = session_stream.next().await {
             match event {
                 CoderEvent::ProPlanReceived { plan } => {
-                    println!("\n[Tech Lead Plan]");
-                    println!("{}", plan);
-                    println!("--------------------");
+                    print_pro_plan(&plan);
                 }
                 CoderEvent::JuniorThinking { text } => {
-                    println!("\n[Junior Developer Thought]");
-                    println!("{}", text);
-                    println!("--------------------------");
+                    print_junior_thought(&text);
                 }
                 CoderEvent::JuniorToolCallAttempted { call } => {
-                    println!("\n[Junior Tool Call]");
-                    println!("  Tool: {}", call.function.name);
-                    println!(
-                        "  Args: {}",
-                        serde_json::to_string_pretty(&call.function.arguments)
-                            .unwrap_or_else(|e| format!("{{Serialization Error: {}}}", e))
-                    );
-                    println!("--------------------");
+                    let args = serde_json::to_string_pretty(&call.function.arguments)
+                        .unwrap_or_else(|e| format!("{{Serialization Error: {}}}", e));
+                    print_tool_call(&call.function.name, &args);
                 }
                 CoderEvent::JuniorToolCallCompleted {
                     id: _,
                     result,
                     tool_name,
                 } => {
-                    println!("\n[Junior Tool Result ({})]", tool_name);
-                    println!("{}", result);
-                    println!("----------------------");
+                    print_tool_result(&tool_name, &result);
                 }
                 CoderEvent::JuniorExecutionError { error } => {
                     // Log non-fatal junior errors
-                    eprintln!("\n[Junior Error] {}", error);
-                    println!("------------------");
+                    print_junior_error(&error);
                 }
                 CoderEvent::AnalysisReceived { analysis } => {
-                    println!("\n[Tech Lead Analysis]");
-                    println!("{}", analysis);
-                    println!("----------------------");
+                    print_analysis(&analysis);
                 }
                 CoderEvent::SessionEnded {
                     final_analysis: _,
                     history,
                 } => {
-                    println!("\n--- Coder Session Complete ---");
+                    print_header("Coder Session Complete", Color::Green);
                     // IMPORTANT: Capture the final history to update the main log
                     final_history_for_next_turn = Some(history);
                     break; // Exit the event processing loop for this turn
                 }
                 CoderEvent::SessionFailed { error } => {
-                    eprintln!("\n[FATAL SESSION ERROR] {}", error);
-                    println!("-------------------------");
+                    print_session_error(&error);
                     session_failed = true;
                     break; // Exit the event processing loop for this turn
                 }
@@ -242,14 +353,23 @@ async fn main() -> Result<()> {
             chat_log = final_history;
         } else if !session_failed {
             // Stream ended without SessionEnded or SessionFailed event? Should not happen.
-            eprintln!("\n[WARNING] Coder session stream ended unexpectedly.");
+            println!();
+            print_colored("[WARNING]", Color::Yellow, true);
+            print_colored(
+                " Coder session stream ended unexpectedly.",
+                Color::Yellow,
+                false,
+            );
+            println!();
             // Optionally add the user message manually if needed, though context might be lost
             chat_log.push(Message::user(user_input));
         }
         // If session_failed, we typically don't update the chat_log,
         // allowing the user to retry or modify the request with the previous context.
 
-        println!("\n--- Ready for next input ---");
+        print_separator(Color::Blue);
+        print_colored("Ready for next input", Color::Green, true);
+        println!();
     }
 
     // Optional: Add a small delay before exiting to ensure tracing flushes

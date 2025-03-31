@@ -1,6 +1,7 @@
 //! Error types for the Coder Module.
 
 use rig::completion::CompletionError;
+use rig::message::Message;
 use rig::tool::ToolSetError;
 use thiserror::Error;
 
@@ -14,7 +15,7 @@ pub enum CoderError {
     JuniorNoInitialResponse,
 
     #[error("Junior agent stopped responding")]
-    JuniorStoppedResponding,
+    JuniorStoppedResponding(Vec<Message>),
 
     #[error("Junior execution reached maximum iterations ({0})")]
     MaxIterationsReached(usize),

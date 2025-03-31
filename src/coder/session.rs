@@ -12,6 +12,7 @@ use rig::{
     tool::{ToolSet, ToolSetError}, // Added import
     OneOrMany,
 };
+use serde_json::json;
 use std::{collections::VecDeque, sync::Arc}; // Added import
 use tracing::{debug, error, info, instrument, warn};
 
@@ -80,11 +81,21 @@ where
             }
             // run_junior_execution now returns CoderError
             Err(e) => {
-                let error_msg = format!("Junior agent execution failed critically: {}", e);
-                error!(error=%e, "Junior agent execution failed");
-                yield CoderEvent::JuniorExecutionError{ error: error_msg.clone() };
-                yield CoderEvent::SessionFailed { error: error_msg };
-                return;
+                match e {
+                    CoderError::JuniorStoppedResponding(ref log) => {
+                        let error_msg = format!("Junior agent stopped responding after: {} messages", log.len());
+                        error!(error=%e, "Junior agent execution failed");
+                        yield CoderEvent::JuniorExecutionError{ error: error_msg.clone() };
+                        log.clone()
+                    }
+                    _ => {
+                        let error_msg = format!("Junior agent execution failed critically: {}", e);
+                        error!(error=%e, "Junior agent execution failed");
+                        yield CoderEvent::JuniorExecutionError{ error: error_msg.clone() };
+                        yield CoderEvent::SessionFailed { error: error_msg };
+                        return;
+                    }
+                }
             }
         };
 
@@ -159,7 +170,7 @@ where
         .completion(initial_prompt.clone(), junior_log.clone())
         .await
         .map_err(CoderError::CompletionError)?
-        .tools(tool_defs.as_ref().clone().into())
+        .tools(tool_defs.as_ref().clone())
         .send()
         .await
         .map_err(CoderError::CompletionError)?;
@@ -185,8 +196,8 @@ where
             events.push(CoderEvent::JuniorExecutionError {
                 error: err.to_string(),
             });
-            // Decide whether to return Ok or Err. Let's return Err here.
-            return Err(err);
+            // Return Ok with an error event
+            return Ok((junior_log, events));
         }
         iteration_count += 1;
         debug!(
@@ -231,13 +242,13 @@ where
                             events.push(CoderEvent::JuniorExecutionError {
                                 error: error_msg.clone(),
                             });
-                            error_msg // Return error message as the tool result string
+                            json!({"error": error_msg}).to_string()
                         }
                     };
 
                     let tool_result_str_final = if tool_result_str.is_empty() {
                         warn!(tool_name=%name, "Tool returned empty result");
-                        "Tool returned no result".to_string()
+                        json!({ "result": "Tool returned no result" }).to_string()
                     } else {
                         tool_result_str
                     };
@@ -268,7 +279,7 @@ where
                         .completion("", junior_log.clone())
                         .await
                         .map_err(CoderError::CompletionError)? // Convert rig error
-                        .tools(tool_defs.as_ref().clone().into())
+                        .tools(tool_defs.as_ref().clone())
                         .send()
                         .await // Result<CompletionResponse, CompletionError>
                     {
@@ -293,7 +304,7 @@ where
 
         if responses.is_empty() && !reacted_in_iteration {
             warn!("Junior response queue empty and no reaction in iteration. Breaking loop.");
-            let err = CoderError::JuniorStoppedResponding;
+            let err = CoderError::JuniorStoppedResponding(junior_log.clone());
             events.push(CoderEvent::JuniorExecutionError {
                 error: err.to_string(),
             });
@@ -307,14 +318,14 @@ where
                 .completion(continue_prompt, junior_log.clone())
                 .await
                 .map_err(CoderError::CompletionError)? // Convert rig error
-                .tools(tool_defs.as_ref().clone().into())
+                .tools(tool_defs.as_ref().clone())
                 .send()
                 .await // Result<CompletionResponse, CompletionError>
             {
                 Ok(out) => {
                     if out.choice.is_empty() {
                         warn!("Junior agent returned no response to continue prompt. Ending loop.");
-                        let err = CoderError::JuniorStoppedResponding;
+                        let err = CoderError::JuniorStoppedResponding(junior_log.clone());
                         events.push(CoderEvent::JuniorExecutionError {
                             error: err.to_string(),
                         });
@@ -408,7 +419,7 @@ async fn execute_tool_call(
         Err(e) => {
             error!(error = %e, "Tool call failed during execution");
         }
-    }
+    };
 
     result
 }

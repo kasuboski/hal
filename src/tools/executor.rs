@@ -56,9 +56,10 @@ impl Executor for ShellExecutor {
                 // This requires ShellExecutor: Sync for the future to be Sync.
                 let perms = self.permissions.lock().await;
                 if !perms.can_execute_command(&command_str) {
-                    return Err(ToolError::PermissionDenied(
-                        format!("Command execution denied: '{}'", command_str),
-                    ));
+                    return Err(ToolError::PermissionDenied(format!(
+                        "Command execution denied: '{}'",
+                        command_str
+                    )));
                 }
             }
 
@@ -68,12 +69,10 @@ impl Executor for ShellExecutor {
                 {
                     let perms = self.permissions.lock().await;
                     if !perms.can_read(dir) {
-                        return Err(ToolError::PermissionDenied(
-                            format!(
-                                "Read permission denied for working directory: '{}'",
-                                dir.display() // Use the owned path
-                            ),
-                        ));
+                        return Err(ToolError::PermissionDenied(format!(
+                            "Read permission denied for working directory: '{}'",
+                            dir.display() // Use the owned path
+                        )));
                     }
                 }
             }
