@@ -313,7 +313,10 @@ where
             return Err(err);
         } else if responses.is_empty() {
             debug!("Junior response queue empty, prompting to continue/finish.");
-            let continue_prompt = "Have you solved the task? If not, continue solving the task. If you have solved the task, call the 'finish' tool to end your turn.";
+            let continue_prompt = "Have you completed the specific instruction given to you? Remember:
+            1. If you were asked to read or gather information, and you've done that, call the 'finish' tool.
+            2. If you were asked to implement something, and you've done that, call the 'finish' tool.
+            3. If you're unsure or need clarification, call the 'finish' tool to get help.";
             junior_log.push(Message::user(continue_prompt));
             match junior_agent
                 .completion(continue_prompt, junior_log.clone())
