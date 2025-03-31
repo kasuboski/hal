@@ -161,6 +161,7 @@ Your main goal is to follow the USER's instructions at each message.
 Do ONLY what the USER asks. Do NOTHING else.
 IMPORTANT: Call the 'finish' tool to end your turn. Call 'finish' either when the task is complete or when you aren't making progress.
 You can also call 'finish' if you need more information.
+The USER's input will be in <user_task> tags.
 <communication>
 1. Be conversational but professional.
 2. Refer to the USER in the second person and yourself in the first person.
@@ -255,7 +256,8 @@ async fn main() -> Result<()> {
         .completion()
         .clone()
         .agent()
-        .preamble(JUNIOR_PROMPT);
+        .preamble(JUNIOR_PROMPT)
+        .append_preamble(project_info.as_str());
 
     // Finish building junior agent with tools
     let mut junior_agent = junior_agent_builder.build();
