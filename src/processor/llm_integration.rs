@@ -97,20 +97,23 @@ where
         text.len()
     );
 
-    let prompt=    format!(
-            "Generate a concise context string for the following text. The context string should help a user understand where this information comes from and its relevance.\n\n\
+    let prompt = format!(
+        "Generate a concise context string for the following text. The context string should help a user understand where this information comes from and its relevance.\n\n\
             Source URL: {}\n\
             Title: {}\n\
             Description: {}\n\
             Page Summary: {}\n\
             Domain: {}\n\n\
             Text:\n",
-            url,
-            metadata.title.as_deref().unwrap_or("Unknown"),
-            metadata.description.as_deref().unwrap_or("No description available"),
-            summary,
-            metadata.domain
-        );
+        url,
+        metadata.title.as_deref().unwrap_or("Unknown"),
+        metadata
+            .description
+            .as_deref()
+            .unwrap_or("No description available"),
+        summary,
+        metadata.domain
+    );
     let completion = client.completion().clone();
     let context = AgentBuilder::new(completion)
         .build()

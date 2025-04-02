@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 use futures::pin_mut;
 use lazy_static::lazy_static;
+use serde_json::json;
 use std::io::Write;
 use std::sync::Mutex;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -121,16 +122,11 @@ fn print_session_error(error: &str) {
 }
 
 use hal::{
-    coder::{run_coder_session, CoderConfig, CoderEvent}, // Use new imports
+    coder::{CoderConfig, CoderEvent, run_coder_session}, // Use new imports
     model,
     telemetry,
-    tools,
 };
-use rig::{
-    completion::ToolDefinition,
-    message::Message,
-    tool::{Tool as _, ToolSet},
-};
+use rig::message::Message;
 use std::{io, time::Duration}; // Added Arc
 use tokio::time;
 use tracing::instrument; // Keep instrument for main
@@ -249,28 +245,33 @@ Otherwise, follow debugging best practices:
 async fn main() -> Result<()> {
     // --- Setup ---
     let _otel = telemetry::init_tracing_subscriber();
+    let config = hal::mcp::config::McpConfig::read_config("mcp.json").await?;
+    let mcp_manager = config.create_manager().await?;
+    let (toolset, tool_defs) = mcp_manager.get_tool_set_and_defs().await?;
+
     let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
     let junior_client = model::Client::new_gemini_free_from_env();
 
-    // Create shared state for tools
-    let tool_state = tools::shared::State::default();
+    tracing::debug!(
+        num_tool_defs = tool_defs.len(),
+        "Collected tool definitions"
+    );
 
-    // Create toolset and get definitions
-    let mut toolset = ToolSet::default();
-    toolset.add_tools(tools::get_full_toolset(&tool_state)); // Build the set for the agent
-
-    let all_tools_dyn = tools::get_all_tools(&tool_state); // Get Vec<Box<dyn ToolDyn>>
-    let tool_defs_futures = all_tools_dyn.iter().map(|t| t.definition("".to_string()));
-    let tool_defs: Vec<ToolDefinition> = futures::future::join_all(tool_defs_futures).await;
-
-    let init_tool = tools::project::Init::new(tool_state.clone());
-    let init = init_tool
-        .call(".".into())
-        .await
-        .context("couldn't get directory_tree")?;
-
-    let tree = serde_json::to_string(init.get("directory_tree").unwrap())
+    let init_arg = serde_json::to_string(&json!({"path": "."}))
         .context("couldn't serialize directory_tree")?;
+    let init = toolset
+        .call("init", init_arg)
+        .await
+        .context("couldn't call init tool")
+        .map(|r| serde_json::from_str::<serde_json::Value>(&r))??;
+
+    let tree = serde_json::to_string(
+        init.get("directory_tree")
+            .expect("couldn't get directory_tree from init")
+            .get("tree")
+            .expect("couldn't get tree from init"),
+    )
+    .context("couldn't serialize directory_tree")?;
     let project_info = format!(
         "You are working in a project directory. The directory tree is as follows:\n{}",
         tree

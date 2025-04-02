@@ -6,11 +6,11 @@ use super::events::CoderEvent;
 use async_stream::stream;
 use futures::stream::Stream;
 use rig::{
+    OneOrMany,
     agent::Agent,
     completion::{Completion as _, CompletionError, CompletionModel, ToolDefinition}, // Removed Completion as _
     message::{AssistantContent, Message, ToolCall, ToolResult, ToolResultContent, UserContent},
     tool::{ToolSet, ToolSetError}, // Added import
-    OneOrMany,
 };
 use serde_json::json;
 use std::{collections::VecDeque, sync::Arc}; // Added import

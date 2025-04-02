@@ -23,7 +23,7 @@ use rig::{
     agent::AgentBuilder,
     completion::{self, CompletionError, CompletionModel, CompletionRequest, CompletionResponse},
 };
-use tracing::{debug_span, info_span, Instrument};
+use tracing::{Instrument, debug_span, info_span};
 
 use super::RateLimitResponse;
 
@@ -60,10 +60,15 @@ impl<M: CompletionModel> CompletionModel for RateLimitedCompletionModel<M> {
             .until_ready()
             .instrument(debug_span!("limiter"))
             .await;
+        let request = completion_request_debug(&completion_request);
         let response = self
             .model
             .completion(completion_request)
-            .instrument(info_span!("completion"))
+            .instrument(info_span!(
+                "completion",
+                prompt = request.0,
+                history = request.1
+            ))
             .await;
         response.map(|response| {
             let rate_limit = RateLimitResponse {
@@ -76,4 +81,11 @@ impl<M: CompletionModel> CompletionModel for RateLimitedCompletionModel<M> {
             }
         })
     }
+}
+
+/// Return the prompt and history for debugging purposes
+fn completion_request_debug(request: &CompletionRequest) -> (String, String) {
+    let prompt = request.prompt.clone();
+    let history = request.chat_history.clone();
+    (format!("{prompt:?}"), format!("{history:?}"))
 }

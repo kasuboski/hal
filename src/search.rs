@@ -36,8 +36,8 @@ mod search_impl;
 
 pub use error::SearchError;
 pub use search_impl::{
-    generate_answer_with_rag, prepare_rag_context, search_index, search_index_with_client,
-    SearchOptions, SearchResult,
+    SearchOptions, SearchResult, generate_answer_with_rag, prepare_rag_context, search_index,
+    search_index_with_client,
 };
 
 /// Re-export types needed for the search API

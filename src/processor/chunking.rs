@@ -31,8 +31,8 @@
 //! This structure-aware chunking is critical for RAG quality as it ensures that
 //! the indexed content maintains semantic coherence and proper context.
 
-use crate::processor::error::ProcessError;
 use crate::processor::ChunkOptions;
+use crate::processor::error::ProcessError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use serde::Serialize;
 use tracing::{debug, instrument};

@@ -29,11 +29,11 @@
 mod telemetry;
 mod tui;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use clap::{Args, Parser, Subcommand};
 use hal::{crawler::CrawledPage, processor::chunk_markdown};
 use indicatif::{ProgressBar, ProgressStyle};
-use mcpr::transport::stdio::StdioTransport;
+// Removed mcpr transport import
 use std::path::PathBuf;
 use telemetry::OtelGuard;
 use tokio::sync::mpsc;
@@ -700,10 +700,7 @@ async fn count_chunks_to_reembed(
 async fn mcp_command(args: McpArgs) -> anyhow::Result<()> {
     info!("Starting HAL MCP server...");
 
-    // Create a transport
-    let transport = StdioTransport::new();
-
-    hal::mcp::run(args.name, args.version, transport)
+    hal::mcp::run(args.name, args.version)
         .await
         .context("error running MCP server")
 }

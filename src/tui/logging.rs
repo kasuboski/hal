@@ -1,6 +1,6 @@
 use std::env;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub fn setup_logging() -> anyhow::Result<()> {
     // Create .hal directory in the working directory if it doesn't exist

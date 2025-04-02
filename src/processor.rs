@@ -34,7 +34,7 @@ mod config;
 mod error;
 mod llm_integration;
 
-pub use chunking::{chunk_markdown, TextChunk};
+pub use chunking::{TextChunk, chunk_markdown};
 pub use config::{ChunkOptions, ProcessorConfig};
 pub use error::ProcessError;
 pub use llm_integration::{generate_context_string, generate_summary};

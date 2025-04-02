@@ -30,7 +30,7 @@ use crate::index::error::DbError;
 use crate::index::schema;
 use crate::index::{IndexedChunk, Website};
 use crate::model::embedding::EmbeddingConversion;
-use libsql::{params, Connection, Row, Rows};
+use libsql::{Connection, Row, Rows, params};
 use rig::embeddings::Embedding;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, instrument};
@@ -138,7 +138,7 @@ impl Database {
             Ok(None) => {
                 return Err(DbError::Data(
                     "No ID returned from last_insert_rowid()".to_string(),
-                ))
+                ));
             }
             Err(e) => return Err(DbError::Data(format!("Failed to get ID: {}", e))),
         };
@@ -367,7 +367,7 @@ impl Database {
                     Ok(None) => {
                         return Err(DbError::Data(
                             "No ID returned from last_insert_rowid()".to_string(),
-                        ))
+                        ));
                     }
                     Err(e) => return Err(DbError::Data(format!("Failed to get ID: {}", e))),
                 };
@@ -454,7 +454,7 @@ impl Database {
             Ok(None) => {
                 return Err(DbError::Data(
                     "No ID returned from last_insert_rowid()".to_string(),
-                ))
+                ));
             }
             Err(e) => return Err(DbError::Data(format!("Failed to get ID: {}", e))),
         };

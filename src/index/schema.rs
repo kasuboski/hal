@@ -26,7 +26,7 @@
 //! efficient retrieval of semantically similar content during RAG operations.
 
 use crate::index::error::DbError;
-use libsql::{params, Connection};
+use libsql::{Connection, params};
 
 /// Initialize the database schema
 pub async fn initialize_schema(conn: &Connection) -> Result<(), DbError> {

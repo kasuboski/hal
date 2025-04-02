@@ -60,7 +60,6 @@ mod error;
 mod markdown;
 pub mod mcp;
 pub mod model;
-pub mod tools;
 
 // RAG feature modules
 pub mod crawler;
@@ -68,7 +67,7 @@ pub mod index;
 pub mod processor;
 pub mod search;
 
-pub use coder::{run_coder_session, CoderConfig, CoderError, CoderEvent};
+pub use coder::{CoderConfig, CoderError, CoderEvent, run_coder_session};
 pub use error::Error;
 pub use markdown::format_markdown;
 

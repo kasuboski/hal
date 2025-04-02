@@ -15,7 +15,7 @@ use std::path::Path;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
-use super::permissions::{basic_path_validation, PermissionsRef};
+use super::permissions::{PermissionsRef, basic_path_validation};
 
 /// Show file contents with optional line range
 pub async fn show_file(
@@ -133,9 +133,18 @@ pub async fn edit_file(
     // Count occurrences of old_string
     let occurrences = content.matches(old_string).count();
     if occurrences == 0 {
-        return Err(format!("String not found in file: {}", path.display()));
+        return Err(format!(
+            "String '{}' not found in file: {}",
+            old_string,
+            path.display()
+        ));
     } else if occurrences > 1 {
-        return Err(format!("Found {} occurrences of the string in file. Please provide more context to make the match unique.", occurrences));
+        return Err(format!(
+            "Found {} occurrences of the string '{}' in file: {}. Please provide more context to make the match unique.",
+            occurrences,
+            old_string,
+            path.display()
+        ));
     }
 
     // Replace string and write back to file
@@ -173,7 +182,8 @@ pub async fn write_file(
     // Make sure parent directory exists
     if !parent_dir.exists() {
         return Err(format!(
-            "Directory does not exist: {}",
+            "Parent directory does not exist for file '{}': {}. Please create the directory first.",
+            path.display(),
             parent_dir.display()
         ));
     }
@@ -293,6 +303,12 @@ async fn build_tree_structure(
 
         // Skip hidden files and directories (starting with .)
         if name.starts_with('.') {
+            continue;
+        }
+
+        // Skip common build/dependency folders
+        if name == "target" || name == "node_modules" {
+            result.push(format!("{}{} [Skipped]", prefix, name));
             continue;
         }
 

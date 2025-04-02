@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use governor::DefaultDirectRateLimiter;
 use rig::embeddings::{Embedding, EmbeddingError, EmbeddingModel};
-use tracing::{debug_span, info_span, Instrument};
+use tracing::{Instrument, debug_span, info_span};
 
 #[derive(Clone)]
 pub struct RateLimitedEmbeddingModel<M: EmbeddingModel> {

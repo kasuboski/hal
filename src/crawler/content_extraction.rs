@@ -18,8 +18,8 @@
 //! The extracted data becomes part of the document metadata in the RAG system,
 //! which can be used for filtering, ranking, and providing context to the LLM.
 
-use crate::crawler::error::CrawlError;
 use crate::crawler::PageMetadata;
+use crate::crawler::error::CrawlError;
 use scraper::{Html, Selector};
 use url::Url;
 

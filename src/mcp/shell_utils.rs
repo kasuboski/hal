@@ -51,60 +51,67 @@ impl ShellExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl Executor for ShellExecutor {
-    async fn execute(
-        &self,
+    fn execute<'a>(
+        &'a self,
         command: String,
-        working_dir: Option<&Path>,
-    ) -> Result<CommandResult, Box<dyn std::error::Error>> {
-        let command_str = command;
+        working_dir: Option<&'a Path>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<CommandResult, Box<dyn std::error::Error>>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            let command_str = command;
 
-        // Check if command is allowed
-        let perms = self.permissions.lock().await;
-        if !perms.can_execute_command(&command_str) {
-            return Err(format!(
-                "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
-                command_str
-            )
-            .into());
-        }
-
-        // Ensure we have initialized the shell
-        let shell = self.ensure_shell_initialized().await?;
-
-        // Create command using the detected shell
-        let mut command = TokioCommand::new(&shell);
-        command.args(["-c", &command_str]);
-
-        // Set working directory if specified
-        if let Some(dir) = working_dir {
-            // Verify read permission for working directory
-            if !perms.can_read(dir) {
+            // Check if command is allowed
+            let perms = self.permissions.lock().await;
+            if !perms.can_execute_command(&command_str) {
                 return Err(format!(
-                    "Read permission not granted for directory: {}. Request permission first.",
-                    dir.display()
+                    "Command not in allowlist: {}. Only safe, read-only commands are permitted.",
+                    command_str
                 )
                 .into());
             }
-            command.current_dir(dir);
-        }
 
-        // Execute command
-        let output = command
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute command: {}", e))?;
+            // Ensure we have initialized the shell
+            let shell = self.ensure_shell_initialized().await?;
 
-        // Parse output
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let exit_code = output.status.code().unwrap_or(-1);
+            // Create command using the detected shell
+            let mut command = TokioCommand::new(&shell);
+            command.args(["-c", &command_str]);
 
-        Ok(CommandResult {
-            stdout,
-            stderr,
-            exit_code,
+            // Set working directory if specified
+            if let Some(dir) = working_dir {
+                // Verify read permission for working directory
+                if !perms.can_read(dir) {
+                    return Err(format!(
+                        "Read permission not granted for directory: {}. Request permission first.",
+                        dir.display()
+                    )
+                    .into());
+                }
+                command.current_dir(dir);
+            }
+
+            // Execute command
+            let output = command
+                .output()
+                .await
+                .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+            // Parse output
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let exit_code = output.status.code().unwrap_or(-1);
+
+            Ok(CommandResult {
+                stdout,
+                stderr,
+                exit_code,
+            })
         })
     }
 }

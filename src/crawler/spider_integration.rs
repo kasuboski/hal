@@ -29,7 +29,7 @@ use spider::compact_str::CompactString;
 use spider::tokio;
 use spider::website::Website;
 use spider_utils::spider_transformations::transformation::content::{
-    transform_content, ReturnFormat, TransformConfig,
+    ReturnFormat, TransformConfig, transform_content,
 };
 use tracing::{debug, error, info, info_span, instrument};
 use url::Url;
