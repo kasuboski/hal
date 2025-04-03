@@ -141,7 +141,6 @@ This junior developer is also an ai model. It is not as smart as you, but has ac
    - Be explicit about what type of task you're giving: information gathering or code implementation
    - For information gathering tasks, start with: 'INFORMATION TASK: ...'
    - For code implementation tasks, start with: 'IMPLEMENTATION TASK: ...'
-   - Give one clear instruction at a time
 
 2. For information gathering tasks:
    - Ask the junior to read files or search for specific information
@@ -250,7 +249,8 @@ async fn main() -> Result<()> {
     let mcp_manager = config.create_manager().await?;
     let (toolset, tool_defs) = mcp_manager.get_tool_set_and_defs().await?;
 
-    let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
+    // let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
+    let pro_client = model::Client::new_gemini_free_from_env();
     let junior_client = model::Client::new_gemini_from_env();
 
     tracing::debug!(
@@ -347,7 +347,7 @@ async fn main() -> Result<()> {
             Ok(SlashCommand::Help) => {
                 print_colored("Available commands:\n", Color::Green, true);
                 print_colored("  /? for help\n", Color::Green, true);
-                print_colored("  /prompt <prompt-path>\n", Color::Green, true);
+                print_colored("  /<prompt-name>\n", Color::Green, true);
                 continue;
             }
             Ok(SlashCommand::Prompt(prompt)) => {
@@ -357,14 +357,14 @@ async fn main() -> Result<()> {
                 let prompt_content = if let Ok(content) = prompt_content {
                     content
                 } else {
-                    print_colored("failed to read prompt file", Color::Red, true);
+                    print_colored("failed to read prompt file\n", Color::Red, true);
                     continue;
                 };
                 chat_log.push(Message::user(prompt_content));
             }
             Err(SlashCommandError::NotASlashCommand) => (),
             Err(SlashCommandError::SlashCommandNotFound) => {
-                print_colored("slash command not recognized", Color::Red, true);
+                print_colored("slash command not recognized\n", Color::Red, true);
                 continue;
             }
         }

@@ -5,12 +5,14 @@
 pub mod config;
 pub mod error;
 pub mod events;
+pub mod executor; // Exported executor module
 mod session; // Private implementation module
 
 // Re-export public types for easier access
 pub use config::CoderConfig;
 pub use error::CoderError;
 pub use events::CoderEvent;
+pub use executor::{AgentExecutor, ExecutionOutcome, ExecutorEvent}; // Re-export executor types
 
 use futures::stream::Stream;
 use rig::{completion::CompletionModel, message::Message};
@@ -56,7 +58,7 @@ use rig::{completion::CompletionModel, message::Message};
 /// let user_request = "Refactor the login function.".to_string();
 /// let history: Vec<Message> = vec![]; // Start with empty history
 ///
-/// let session_stream = run_coder_session(config, user_request, history);
+/// let session_stream = run_coder_session(&config, user_request, history);
 /// futures::pin_mut!(session_stream);
 ///
 /// while let Some(event) = session_stream.next().await {
@@ -82,7 +84,7 @@ pub fn run_coder_session<C>(
     config: &CoderConfig<C>,
     user_request: String,
     initial_history: Vec<Message>,
-) -> impl Stream<Item = CoderEvent> + Send + use<'_, C>
+) -> impl Stream<Item = CoderEvent> + Send + '_
 where
     C: CompletionModel + Clone + Send + Sync + 'static,
 {

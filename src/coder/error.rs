@@ -11,11 +11,11 @@ pub enum CoderError {
     #[error("Pro agent returned an empty plan")]
     EmptyPlan,
 
-    #[error("Junior agent provided no initial response")]
-    JuniorNoInitialResponse,
+    #[error("Agent provided no initial response")]
+    AgentNoInitialResponse,
 
-    #[error("Junior agent stopped responding")]
-    JuniorStoppedResponding(Vec<Message>),
+    #[error("Agent stopped responding")]
+    AgentStoppedResponding(Vec<Message>),
 
     #[error("Junior execution reached maximum iterations ({0})")]
     MaxIterationsReached(usize),

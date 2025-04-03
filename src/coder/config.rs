@@ -19,7 +19,7 @@ where
 
     /// The "Junior" agent responsible for executing the plan and using tools.
     /// This agent should have its `ToolSet` pre-configured.
-    pub junior_agent: Agent<C>,
+    pub junior_agent: Arc<Agent<C>>,
 
     /// Definitions of the tools available to the Junior agent.
     /// These are sent to the model to inform it about available functions.
@@ -47,7 +47,7 @@ where
     ) -> Self {
         Self {
             pro_agent,
-            junior_agent,
+            junior_agent: Arc::new(junior_agent),
             tool_defs: Arc::new(tool_defs),
             max_junior_iterations,
         }

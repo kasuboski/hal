@@ -1,19 +1,19 @@
 //! Private implementation details for running a coder session.
 
 use super::config::CoderConfig;
-use super::error::CoderError; // Import custom error
+use super::error::CoderError;
 use super::events::CoderEvent;
+use super::executor::{AgentExecutor, ExecutorEvent}; // Removed unused ExecutionOutcome
 use async_stream::stream;
 use futures::stream::Stream;
+use rig::completion::Completion as _;
+// Removed StreamExt
 use rig::{
-    OneOrMany,
     agent::Agent,
-    completion::{Completion as _, CompletionError, CompletionModel, ToolDefinition}, // Removed Completion as _
-    message::{AssistantContent, Message, ToolCall, ToolResult, ToolResultContent, UserContent},
-    tool::{ToolSet, ToolSetError}, // Added import
+    // Removed CompletionError import as it's handled within CoderError now
+    completion::{CompletionError, CompletionModel},
+    message::{AssistantContent, Message, ToolResultContent, UserContent},
 };
-use serde_json::json;
-use std::{collections::VecDeque, sync::Arc}; // Added import
 use tracing::{debug, error, info, instrument, warn};
 
 /// Runs the core Pro/Junior agent interaction loop.
@@ -22,14 +22,14 @@ pub(super) fn run<C>(
     config: &CoderConfig<C>,
     user_request: String,
     initial_history: Vec<Message>,
-) -> impl Stream<Item = CoderEvent> + Send + use<'_, C>
+) -> impl Stream<Item = CoderEvent> + Send + '_
 where
     C: CompletionModel + Clone + Send + Sync + 'static,
 {
     stream! {
         let mut pro_history = initial_history;
         let pro_agent = &config.pro_agent;
-        let junior_agent = &config.junior_agent;
+        // let junior_agent = &config.junior_agent; // No longer needed as a direct reference here
 
         // --- 1. Get Plan from Pro Agent ---
         info!("Requesting plan from Pro agent");
@@ -51,8 +51,7 @@ where
                 pro_history.push(Message::assistant(&p));
                 yield CoderEvent::ProPlanReceived { plan: p.clone() };
                 p
-            },
-            // Use CoderError::CompletionError implicitly via #[from]
+            }
             Err(e) => {
                 let coder_error = CoderError::from(e);
                 let error_msg = format!("Failed to get plan from Pro agent: {}", coder_error);
@@ -64,40 +63,106 @@ where
 
         // --- 2. Execute Plan with Junior Agent ---
         info!("Starting Junior agent execution");
-        let junior_result = run_junior_execution(
-            junior_agent,
-            &config.tool_defs,
-            &plan,
-            config.max_junior_iterations,
-        )
-        .await;
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<ExecutorEvent, CoderError>>(32);
 
-        let junior_log = match junior_result {
-            Ok((final_log, events)) => {
-                for event in events {
-                    yield event;
+        // Create and configure the executor
+        let tool_defs = config.tool_defs.clone();
+        let max_iterations = config.max_junior_iterations;
+        let mut executor = AgentExecutor::new(
+            config.junior_agent.clone(),
+            tool_defs, // Arc clone is cheap
+            max_iterations,
+        );
+
+        // Format the initial prompt
+        let initial_prompt = format!("<user_task>{}</user_task>\nDo NOTHING else.", plan);
+
+        // Spawn the executor task
+        let executor_handle = tokio::spawn(async move {
+            executor.execute(initial_prompt, tx).await
+        });
+
+        // Forward all junior events
+        let mut junior_executed = false;
+        let mut had_error = false;
+        let mut junior_finished = false;
+
+        while let Some(event_result) = rx.recv().await {
+            junior_executed = true;
+            match event_result {
+                Ok(executor_event) => {
+                    // Convert ExecutorEvent to CoderEvent and yield
+                    let coder_event = match executor_event {
+                        ExecutorEvent::Thinking { text } => CoderEvent::JuniorThinking { text },
+                        ExecutorEvent::ToolCallAttempted { call } => CoderEvent::JuniorToolCallAttempted { call },
+                        ExecutorEvent::ToolCallCompleted { id, result, tool_name } => CoderEvent::JuniorToolCallCompleted { id, result, tool_name },
+                        ExecutorEvent::ExecutionError { error } => {
+                            had_error = true;
+                            CoderEvent::JuniorExecutionError { error }
+                        },
+                        ExecutorEvent::Finished { summary } => {
+                            info!(summary = %summary, "Junior agent finished execution via 'finish' tool");
+                            junior_finished = true;
+                            // Optionally yield a specific event, or just let the loop end
+                            // For now, just break the loop after processing this
+                            continue; // Or yield an event if defined
+                        }
+                    };
+                    yield coder_event;
                 }
-                final_log
+                Err(coder_error) => {
+                    // This error likely came from prompt_to_continue failing a completion request
+                    // or a terminal error like MaxIterationsReached from the executor loop itself.
+                    let error_msg = format!("Junior agent execution failed: {}", coder_error);
+                    error!(error=%coder_error, "Junior execution failed");
+                    had_error = true;
+                    yield CoderEvent::JuniorExecutionError { error: error_msg.clone() };
+
+                    // Check if this specific error should be fatal for the whole session
+                    match coder_error {
+                        CoderError::CompletionError(_) | // Failure during agent call (e.g., reaction, continue)
+                        CoderError::MaxIterationsReached(_) |
+                        CoderError::AgentNoInitialResponse |
+                        CoderError::AgentStoppedResponding(_) => {
+                            yield CoderEvent::SessionFailed { error: error_msg };
+                            // Close the receiver to ensure the spawned task doesn't hang
+                            rx.close();
+                            // Wait for the task to finish to avoid detached task warnings
+                            let _ = executor_handle.await;
+                            return;
+                        }
+                        _ => {} // Other errors (like ToolError) might have been reported as ExecutionError event
+                    }
+                }
             }
-            // run_junior_execution now returns CoderError
-            Err(e) => {
-                match e {
-                    CoderError::JuniorStoppedResponding(ref log) => {
-                        let error_msg = format!("Junior agent stopped responding after: {} messages", log.len());
-                        error!(error=%e, "Junior agent execution failed");
-                        yield CoderEvent::JuniorExecutionError{ error: error_msg.clone() };
-                        log.clone()
-                    }
-                    _ => {
-                        let error_msg = format!("Junior agent execution failed critically: {}", e);
-                        error!(error=%e, "Junior agent execution failed");
-                        yield CoderEvent::JuniorExecutionError{ error: error_msg.clone() };
-                        yield CoderEvent::SessionFailed { error: error_msg };
-                        return;
-                    }
-                }
+        }
+
+        // --- Get Executor Result ---
+        let execution_outcome = match executor_handle.await {
+            Ok(res) => res,
+            Err(join_error) => {
+                let error_msg = format!("Junior executor task failed: {:?}", join_error);
+                error!(error=%join_error, "Executor task join error");
+                yield CoderEvent::SessionFailed { error: error_msg };
+                return;
             }
         };
+
+        // Get the junior history for analysis
+        let junior_log = execution_outcome.history;
+
+        // Removed the block checking execution_outcome.error - errors are handled via channel
+
+        // If junior didn't execute at all (e.g., initial response failed hard) and no error was reported
+        if !junior_executed && !junior_finished && !had_error {
+            warn!("Junior agent execution yielded no events and finished without error/finish call.");
+            // This might indicate an issue like the initial response failing before the loop
+            // The error should be in executor_result.error if it happened
+            if junior_log.is_empty() {
+                yield CoderEvent::SessionFailed { error: "Junior agent execution failed silently.".to_string() };
+                return;
+            }
+        }
 
         // --- 3. Get Analysis from Pro Agent ---
         info!("Requesting analysis from Pro agent");
@@ -128,7 +193,7 @@ where
                  }
              },
              Err(e) => {
-                 let coder_error = CoderError::from(e);
+                 let coder_error = CoderError::CompletionError(e);
                  let error_msg = format!("Failed to get analysis from Pro agent: {}", coder_error);
                  error!(error=%coder_error, "Pro agent analysis failed");
                  yield CoderEvent::SessionFailed { error: error_msg };
@@ -143,216 +208,6 @@ where
             history: pro_history,
         };
     }
-}
-
-/// Runs the Junior agent's execution loop, handling thoughts, tool calls, and reactions.
-/// Returns the final junior message log and a Vec of events generated during execution.
-#[instrument(name = "junior_execution", skip_all, fields(plan_len = plan.len()))]
-async fn run_junior_execution<C>(
-    junior_agent: &Agent<C>,
-    tool_defs: &Arc<Vec<ToolDefinition>>,
-    plan: &str,
-    max_iterations: usize,
-) -> Result<(Vec<Message>, Vec<CoderEvent>), CoderError>
-where
-    C: CompletionModel + Clone + Send + Sync + 'static,
-{
-    let mut junior_log = vec![];
-    let mut events = Vec::new();
-    let mut responses = VecDeque::new();
-
-    let initial_prompt = format!("<user_task>{}</user_task>\nDo NOTHING else.", plan);
-
-    debug!(prompt = initial_prompt, "Sending initial task to Junior");
-
-    // Initial call to Junior
-    let initial_response = junior_agent
-        .completion(initial_prompt.clone(), junior_log.clone())
-        .await
-        .map_err(CoderError::CompletionError)?
-        .tools(tool_defs.as_ref().clone())
-        .send()
-        .await
-        .map_err(CoderError::CompletionError)?;
-    junior_log.push(Message::user(&initial_prompt));
-
-    initial_response
-        .choice
-        .iter()
-        .for_each(|c| responses.push_back(c.clone())); // Clone content for the queue
-
-    if responses.is_empty() {
-        warn!("Junior agent returned no initial response to the plan.");
-        events.push(CoderEvent::JuniorExecutionError {
-            error: CoderError::JuniorNoInitialResponse.to_string(), // Use specific error
-        });
-        return Ok((junior_log, events));
-    }
-
-    let mut iteration_count = 0;
-    'junior_loop: loop {
-        if iteration_count >= max_iterations {
-            warn!(max_iterations, "Junior execution reached max iterations");
-            let err = CoderError::MaxIterationsReached(max_iterations);
-            events.push(CoderEvent::JuniorExecutionError {
-                error: err.to_string(),
-            });
-            // Return Ok with an error event
-            return Ok((junior_log, events));
-        }
-        iteration_count += 1;
-        debug!(
-            iteration = iteration_count,
-            "Starting Junior loop iteration"
-        );
-
-        let mut reacted_in_iteration = false;
-        while let Some(content) = responses.pop_front() {
-            reacted_in_iteration = true;
-            let assistant_message = Message::Assistant {
-                content: OneOrMany::one(content.clone()),
-            };
-            junior_log.push(assistant_message);
-
-            match content {
-                AssistantContent::Text(text) => {
-                    info!(junior_thought = %text.text, "Junior thought");
-                    events.push(CoderEvent::JuniorThinking {
-                        text: text.text.clone(),
-                    });
-                }
-                AssistantContent::ToolCall(tool_call) => {
-                    let id = tool_call.id.clone();
-                    let name = tool_call.function.name.clone();
-                    debug!(tool_name=%name, tool_id=%id, tool_args=?tool_call.function.arguments, "Junior tool call initiated");
-
-                    events.push(CoderEvent::JuniorToolCallAttempted {
-                        call: tool_call.clone(),
-                    });
-
-                    // Execute Tool Call
-                    let tool_result_str = match execute_tool_call(&junior_agent.tools, &tool_call)
-                        .await
-                    {
-                        Ok(result) => result,
-                        // Convert ToolSetError to string for the event log, but keep original error type
-                        Err(e) => {
-                            let coder_error = CoderError::from(e); // Use #[from]
-                            let error_msg = format!("Tool call '{}' failed: {}", name, coder_error);
-                            error!(error=%coder_error, tool_name=%name, "Tool call execution failed");
-                            events.push(CoderEvent::JuniorExecutionError {
-                                error: error_msg.clone(),
-                            });
-                            json!({"error": error_msg}).to_string()
-                        }
-                    };
-
-                    let tool_result_str_final = if tool_result_str.is_empty() {
-                        warn!(tool_name=%name, "Tool returned empty result");
-                        json!({ "result": "Tool returned no result" }).to_string()
-                    } else {
-                        tool_result_str
-                    };
-
-                    debug!(tool_name=%name, tool_id=%id, result_len=tool_result_str_final.len(), "Junior tool call completed");
-                    events.push(CoderEvent::JuniorToolCallCompleted {
-                        id: id.clone(),
-                        result: tool_result_str_final.clone(),
-                        tool_name: name.clone(),
-                    });
-
-                    let tool_message = Message::User {
-                        content: OneOrMany::one(UserContent::ToolResult(ToolResult {
-                            id,
-                            content: OneOrMany::one(ToolResultContent::text(tool_result_str_final)),
-                        })),
-                    };
-                    junior_log.push(tool_message);
-
-                    if name == "finish" {
-                        info!("Junior agent called finish tool. Exiting loop.");
-                        break 'junior_loop;
-                    }
-
-                    // React to the tool call result
-                    debug!("Requesting Junior reaction to tool result");
-                    match junior_agent
-                        .completion("", junior_log.clone())
-                        .await
-                        .map_err(CoderError::CompletionError)? // Convert rig error
-                        .tools(tool_defs.as_ref().clone())
-                        .send()
-                        .await // Result<CompletionResponse, CompletionError>
-                    {
-                        Ok(out) => {
-                            if out.choice.is_empty() {
-                                warn!("Junior agent returned no reaction to tool result.");
-                            }
-                            out.choice.iter().for_each(|c| responses.push_back(c.clone()));
-                        }
-                        Err(e) => {
-                            let coder_error = CoderError::from(e); // Convert rig error
-                            let error_msg =
-                                format!("Junior agent failed to react to tool result: {}", coder_error);
-                            error!(error=%coder_error, "Junior agent reaction failed");
-                            events.push(CoderEvent::JuniorExecutionError { error: error_msg });
-                            warn!("Error reacting to tool response, continuing loop if possible.");
-                        }
-                    }
-                }
-            }
-        } // End while let Some(content)
-
-        if responses.is_empty() && !reacted_in_iteration {
-            warn!("Junior response queue empty and no reaction in iteration. Breaking loop.");
-            let err = CoderError::JuniorStoppedResponding(junior_log.clone());
-            events.push(CoderEvent::JuniorExecutionError {
-                error: err.to_string(),
-            });
-            // Return Err to signal failure
-            return Err(err);
-        } else if responses.is_empty() {
-            debug!("Junior response queue empty, prompting to continue/finish.");
-            let continue_prompt = "Have you completed the specific instruction given to you? Remember:
-            1. If you were asked to read or gather information, and you've done that, call the 'finish' tool.
-            2. If you were asked to implement something, and you've done that, call the 'finish' tool.
-            3. If you're unsure or need clarification, call the 'finish' tool to get help.";
-            junior_log.push(Message::user(continue_prompt));
-            match junior_agent
-                .completion(continue_prompt, junior_log.clone())
-                .await
-                .map_err(CoderError::CompletionError)? // Convert rig error
-                .tools(tool_defs.as_ref().clone())
-                .send()
-                .await // Result<CompletionResponse, CompletionError>
-            {
-                Ok(out) => {
-                    if out.choice.is_empty() {
-                        warn!("Junior agent returned no response to continue prompt. Ending loop.");
-                        let err = CoderError::JuniorStoppedResponding(junior_log.clone());
-                        events.push(CoderEvent::JuniorExecutionError {
-                            error: err.to_string(),
-                        });
-                        // Return Err to signal failure
-                        return Err(err);
-                    }
-                    // Use iter() and clone()
-                    out.choice.iter().for_each(|c| responses.push_back(c.clone()));
-                }
-                Err(e) => {
-                    let coder_error = CoderError::from(e); // Convert rig error
-                    let error_msg = format!("Junior agent failed on continue prompt: {}", coder_error);
-                    error!(error=%coder_error, "Junior continue prompt failed");
-                    events.push(CoderEvent::JuniorExecutionError { error: error_msg });
-                    warn!("Error on continue prompt. Ending loop.");
-                    // Return Err to signal failure
-                    return Err(coder_error);
-                }
-            }
-        }
-    } // End 'junior_loop
-
-    Ok((junior_log, events))
 }
 
 /// Helper to call the Pro agent for planning or analysis.
@@ -398,34 +253,6 @@ where
     }
 
     Ok(text_response)
-}
-
-/// Executes a tool call using the provided ToolSet. Returns the string result.
-#[instrument(name = "execute_tool_call", skip(toolset, tool_call), fields(tool_name = %tool_call.function.name, tool_id = %tool_call.id))]
-async fn execute_tool_call(
-    toolset: &ToolSet,
-    tool_call: &ToolCall,
-) -> Result<String, ToolSetError> // Returns rig error directly
-{
-    let name = &tool_call.function.name;
-    // Use map_err for serde error conversion if needed, but ToolSetError::JsonError handles it
-    let args_json = serde_json::to_string(&tool_call.function.arguments)
-        .map_err(rig::tool::ToolSetError::JsonError)?; // Convert serde error
-
-    debug!(tool_args = %args_json, "Executing tool call");
-
-    let result = toolset.call(name, args_json).await;
-
-    match &result {
-        Ok(res_str) => {
-            debug!(result_len = res_str.len(), "Tool call successful");
-        }
-        Err(e) => {
-            error!(error = %e, "Tool call failed during execution");
-        }
-    };
-
-    result
 }
 
 /// Formats messages into a simple string representation suitable for the Pro agent's analysis prompt.

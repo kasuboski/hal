@@ -26,6 +26,7 @@ use ratelimited_embedding::RateLimitedEmbeddingModel;
 use rig::{completion::CompletionModel, embeddings::EmbeddingModel, providers::gemini};
 
 pub mod embedding;
+pub mod mock_model;
 pub mod ratelimited_completion;
 pub mod ratelimited_embedding;
 
