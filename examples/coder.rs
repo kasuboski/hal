@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use futures::pin_mut;
 use lazy_static::lazy_static;
 use serde_json::json;
-use std::io::Write;
 use std::sync::Mutex;
+use std::{io::Write, path::PathBuf};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use tokio_stream::StreamExt as _;
 lazy_static! {
@@ -147,6 +147,7 @@ This junior developer is also an ai model. It is not as smart as you, but has ac
    - Ask the junior to read files or search for specific information
    - DO NOT instruct them to implement anything in the same step
    - Example: 'INFORMATION TASK: Please read the file src/main.rs and report back its contents.'
+   - Exammple: 'INFORMATION TASK: Please read all markdown files under `.cursor/rules` and report back their contents.'
 
 3. For implementation tasks:
    - Provide clear steps for what code to write or modify
@@ -250,7 +251,7 @@ async fn main() -> Result<()> {
     let (toolset, tool_defs) = mcp_manager.get_tool_set_and_defs().await?;
 
     let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
-    let junior_client = model::Client::new_gemini_free_from_env();
+    let junior_client = model::Client::new_gemini_from_env();
 
     tracing::debug!(
         num_tool_defs = tool_defs.len(),
@@ -341,6 +342,33 @@ async fn main() -> Result<()> {
             continue;
         }
 
+        let cmd = parse_slash_command(&user_input);
+        match cmd {
+            Ok(SlashCommand::Help) => {
+                print_colored("Available commands:\n", Color::Green, true);
+                print_colored("  /? for help\n", Color::Green, true);
+                print_colored("  /prompt <prompt-path>\n", Color::Green, true);
+                continue;
+            }
+            Ok(SlashCommand::Prompt(prompt)) => {
+                // read the prompt from a file in `.hal/prompts
+                let path = PathBuf::from(".hal/prompts").join(format!("{prompt}.md"));
+                let prompt_content = tokio::fs::read_to_string(path).await;
+                let prompt_content = if let Ok(content) = prompt_content {
+                    content
+                } else {
+                    print_colored("failed to read prompt file", Color::Red, true);
+                    continue;
+                };
+                chat_log.push(Message::user(prompt_content));
+            }
+            Err(SlashCommandError::NotASlashCommand) => (),
+            Err(SlashCommandError::SlashCommandNotFound) => {
+                print_colored("slash command not recognized", Color::Red, true);
+                continue;
+            }
+        }
+
         print_header("Running Coder Session", Color::Blue);
 
         // --- Call the Coder Module ---
@@ -429,4 +457,34 @@ async fn main() -> Result<()> {
     time::sleep(Duration::from_secs(1)).await;
 
     Ok(())
+}
+
+/// parse slash command creates a SlashCommand from a user input string
+/// if the user_input doesn't start with `/` it returns NotASlashCommand
+/// if the user_input is `?` it returns SlashCommand::Help
+/// if the user_input is `/` with nothing after it returns SlashCommandNotFound
+fn parse_slash_command(user_input: &str) -> Result<SlashCommand, SlashCommandError> {
+    if !user_input.starts_with('/') {
+        return Err(SlashCommandError::NotASlashCommand);
+    }
+    let user_input = user_input.trim_start_matches('/');
+    if user_input.is_empty() {
+        return Err(SlashCommandError::SlashCommandNotFound);
+    }
+    match user_input {
+        "?" => Ok(SlashCommand::Help),
+        _ => Ok(SlashCommand::Prompt(user_input.to_string())),
+    }
+}
+
+#[derive(Debug)]
+enum SlashCommandError {
+    NotASlashCommand,
+    SlashCommandNotFound,
+}
+
+#[derive(Debug)]
+enum SlashCommand {
+    Help,
+    Prompt(String),
 }
