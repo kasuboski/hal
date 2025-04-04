@@ -3,7 +3,6 @@
 use anyhow::{Context, Result};
 use futures::pin_mut;
 use lazy_static::lazy_static;
-use rig::tool::ToolSet;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 use std::{io::Write, path::PathBuf};
