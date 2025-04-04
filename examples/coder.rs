@@ -3,8 +3,9 @@
 use anyhow::{Context, Result};
 use futures::pin_mut;
 use lazy_static::lazy_static;
+use rig::tool::ToolSet;
 use serde_json::json;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::{io::Write, path::PathBuf};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use tokio_stream::StreamExt as _;
@@ -133,9 +134,10 @@ use tracing::instrument; // Keep instrument for main
 
 // --- Prompts (Keep as before or load from config) ---
 const PRO_PROMPT: &str = r"You are a tech lead pairing with a USER and junior developer.
-Your goal is to create a plan to follow the user's instructions.
-This plan will be followed by the junior developer to implement the USER's request in code.
+Your job is to help the junior developer complete their coding task. The junior developer will work on the user request and you will analyze result.
 This junior developer is also an ai model. It is not as smart as you, but has access to tools that interact with the codebase.
+
+You also have access to tools that can help you gather information and understand the codebase.
 <instruction_clarity>
 1. When instructing the junior developer:
    - Be explicit about what type of task you're giving: information gathering or code implementation
@@ -152,14 +154,9 @@ This junior developer is also an ai model. It is not as smart as you, but has ac
    - Provide clear steps for what code to write or modify
    - Example: 'IMPLEMENTATION TASK: Update the function X in file Y to handle error case Z.'
 </instruction_clarity>
-<flow>
-You will work in a loop.
-You will process the USER's request and provide the junior developer with the next step.
-The junior developer will then work on this step. You will be provided with the junior developer's response and thoughts.
-You will then analyze the junior developer's response.
-You will then plan again and provide the junior developer with the next step and so on.
-You will break the loop when the USER's request is complete. Break the loop by outputting only %TASK_COMPLETE%.
-</flow>";
+<output>
+Output your analyzis using the finish tool. Your analysis should be sent as the summary parameter.
+</output>";
 
 const JUNIOR_PROMPT: &str = r"You are a powerful agentic aicoder.
 You are pair programming with a USER to solve their coding task.
@@ -248,9 +245,11 @@ async fn main() -> Result<()> {
     let config = hal::mcp::config::McpConfig::read_config("mcp.json").await?;
     let mcp_manager = config.create_manager().await?;
     let (toolset, tool_defs) = mcp_manager.get_tool_set_and_defs().await?;
+    // just get it again instead of dealing with the lack of clone
+    let (pro_toolset, _) = mcp_manager.get_tool_set_and_defs().await?;
 
     // let pro_client = model::Client::new_gemini_free_model_from_env("gemini-2.5-pro-exp-03-25");
-    let pro_client = model::Client::new_gemini_free_from_env();
+    let pro_client = model::Client::new_gemini_from_env();
     let junior_client = model::Client::new_gemini_from_env();
 
     tracing::debug!(
@@ -279,13 +278,12 @@ async fn main() -> Result<()> {
     );
 
     // Create Agents
-    let pro_agent = pro_client
+    let pro_agent_builder = pro_client
         .completion()
         .clone()
         .agent()
         .preamble(PRO_PROMPT)
-        .append_preamble(project_info.as_str())
-        .build();
+        .append_preamble(project_info.as_str());
     let junior_agent_builder = junior_client
         .completion()
         .clone()
@@ -293,16 +291,21 @@ async fn main() -> Result<()> {
         .preamble(JUNIOR_PROMPT)
         .append_preamble(project_info.as_str());
 
-    // Finish building junior agent with tools
+    let mut pro_agent = pro_agent_builder.build();
+    pro_agent.tools = pro_toolset;
     let mut junior_agent = junior_agent_builder.build();
     junior_agent.tools = toolset; // Agent holds the ToolSet
 
+    let pro_agent = Arc::new(pro_agent);
+
     // --- Coder Module Configuration ---
     let coder_config = CoderConfig::new(
-        pro_agent,    // Transfer ownership
-        junior_agent, // Transfer ownership
-        tool_defs,    // Transfer ownership
-        50,           // Example max iterations
+        pro_agent,         // Transfer ownership
+        junior_agent,      // Transfer ownership
+        tool_defs.clone(), // Junior tool definitions
+        50,                // Max junior iterations
+        tool_defs,         // Pro tool definitions (using same tools for now)
+        20,                // Max pro iterations
     );
 
     // --- CLI Interaction Loop ---
@@ -388,6 +391,37 @@ async fn main() -> Result<()> {
             match event {
                 CoderEvent::ProPlanReceived { plan } => {
                     print_pro_plan(&plan);
+                }
+                CoderEvent::ProPlanGenerated { plan } => {
+                    print_pro_plan(&plan);
+                }
+                CoderEvent::ProThinking { text } => {
+                    print_colored("[Tech Lead Thought]\n", Color::Magenta, true);
+                    print_colored("  ", Color::White, false);
+                    println!("{}", text);
+                    print_separator(Color::Rgb(100, 100, 100));
+                }
+                CoderEvent::ProToolCall { tool, args } => {
+                    print_colored("[Tech Lead Tool Call]\n", Color::Magenta, true);
+                    print_colored("  Tool: ", Color::Rgb(150, 150, 150), false);
+                    println!("{}", tool);
+                    print_colored("  Args: ", Color::Rgb(150, 150, 150), false);
+                    println!("{}", args);
+                    print_separator(Color::Rgb(100, 100, 100));
+                }
+                CoderEvent::ProToolResult { tool, result } => {
+                    print_colored("[Tech Lead Tool Result (", Color::Magenta, true);
+                    print_colored(tool.as_str(), Color::Magenta, true);
+                    print_colored(")]\n", Color::Magenta, true);
+                    print_colored("  ", Color::White, false);
+                    println!("{}", result);
+                    print_separator(Color::Rgb(100, 100, 100));
+                }
+                CoderEvent::Warning { message } => {
+                    print_colored("[Warning]\n", Color::Yellow, true);
+                    print_colored("  ", Color::Yellow, false);
+                    println!("{}", message);
+                    print_separator(Color::Rgb(100, 100, 100));
                 }
                 CoderEvent::JuniorThinking { text } => {
                     print_junior_thought(&text);

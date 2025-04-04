@@ -378,7 +378,6 @@ where
                     history: self.history.clone(),
                 };
             } else if self.responses.is_empty() {
-            } else if self.responses.is_empty() {
                 debug!("Response queue empty, prompting to continue/finish.");
                 if let Err(e) = self.prompt_to_continue().await {
                     // Send the error via channel and return the outcome

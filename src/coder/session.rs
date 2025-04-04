@@ -3,18 +3,14 @@
 use super::config::CoderConfig;
 use super::error::CoderError;
 use super::events::CoderEvent;
-use super::executor::{AgentExecutor, ExecutorEvent}; // Removed unused ExecutionOutcome
+use super::executor::{AgentExecutor, ExecutorEvent};
 use async_stream::stream;
 use futures::stream::Stream;
-use rig::completion::Completion as _;
-// Removed StreamExt
 use rig::{
-    agent::Agent,
-    // Removed CompletionError import as it's handled within CoderError now
-    completion::{CompletionError, CompletionModel},
+    completion::CompletionModel,
     message::{AssistantContent, Message, ToolResultContent, UserContent},
 };
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 /// Runs the core Pro/Junior agent interaction loop.
 #[instrument(name = "coder_session", skip_all, fields(user_request_len = user_request.len(), initial_history_len = initial_history.len()))]
@@ -27,55 +23,22 @@ where
     C: CompletionModel + Clone + Send + Sync + 'static,
 {
     stream! {
-        let mut pro_history = initial_history;
-        let pro_agent = &config.pro_agent;
-        // let junior_agent = &config.junior_agent; // No longer needed as a direct reference here
-
-        // --- 1. Get Plan from Pro Agent ---
-        info!("Requesting plan from Pro agent");
-        let plan_prompt_msg = Message::user(&user_request);
-        let mut current_pro_turn_history = pro_history.clone();
-        current_pro_turn_history.push(plan_prompt_msg);
-
-        let plan_result = run_pro_completion(pro_agent, current_pro_turn_history.as_slice()).await;
-
-        let plan = match plan_result {
-            Ok(p) => {
-                if p.is_empty() {
-                    let error_msg = CoderError::EmptyPlan.to_string();
-                    error!(error=%error_msg);
-                    yield CoderEvent::SessionFailed { error: error_msg };
-                    return;
-                }
-                pro_history = current_pro_turn_history;
-                pro_history.push(Message::assistant(&p));
-                yield CoderEvent::ProPlanReceived { plan: p.clone() };
-                p
-            }
-            Err(e) => {
-                let coder_error = CoderError::from(e);
-                let error_msg = format!("Failed to get plan from Pro agent: {}", coder_error);
-                error!(error=%coder_error, "Pro agent planning failed");
-                yield CoderEvent::SessionFailed { error: error_msg };
-                return;
-            }
-        };
-
-        // --- 2. Execute Plan with Junior Agent ---
-        info!("Starting Junior agent execution");
+        info!("Starting agent execution");
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<ExecutorEvent, CoderError>>(32);
 
         // Create and configure the executor
         let tool_defs = config.tool_defs.clone();
         let max_iterations = config.max_junior_iterations;
-        let mut executor = AgentExecutor::new(
+        let executor = AgentExecutor::new(
             config.junior_agent.clone(),
             tool_defs, // Arc clone is cheap
             max_iterations,
         );
 
+        let mut executor = executor.with_history(initial_history.clone());
+
         // Format the initial prompt
-        let initial_prompt = format!("<user_task>{}</user_task>\nDo NOTHING else.", plan);
+        let initial_prompt = format!("<user_task>{}</user_task>\nDo NOTHING else.", user_request);
 
         // Spawn the executor task
         let executor_handle = tokio::spawn(async move {
@@ -164,41 +127,122 @@ where
             }
         }
 
-        // --- 3. Get Analysis from Pro Agent ---
-        info!("Requesting analysis from Pro agent");
+        // --- 3. Get Analysis from Pro Agent using tools ---
+        info!("Requesting analysis from Pro agent with tools");
+
+        // Create the junior developer log
         let junior_info = junior_log
             .iter()
             .map(message_to_string_for_analysis)
             .collect::<Vec<String>>()
             .join("\n\n");
 
+        // Format the analysis prompt
         let analysis_prompt = format!(
-            "Analyze the implementation of the plan by the junior developer based on the following log:\n\n<junior_developer_log>\n{}\n</junior_developer_log>\n\nProvide your analysis. The junior developer should have called the 'finish' tool if the task was complete.",
+            "Analyze the implementation of the plan by the junior developer based on the following log:\n\n<junior_developer_log>\n{}\n</junior_developer_log>\n\n\
+            You have access to various tools that can help you analyze the implementation.\n\n\
+            Your goal is to:\n\
+            1. Use available tools to gather any additional information you need\n\
+            2. Analyze how well the junior developer followed the plan\n\
+            3. Identify any issues or improvements in the implementation\n\
+            4. When you have completed your analysis, call the \"finish\" tool with your complete analysis in the summary parameter\n\n\
+            IMPORTANT: Your analysis must be complete and detailed in the summary of the finish tool call.",
             junior_info
         );
 
-        pro_history.push(Message::user(&analysis_prompt));
+        // Create a channel for Pro agent executor events
+        let (pro_tx, mut pro_rx) = tokio::sync::mpsc::channel::<Result<ExecutorEvent, CoderError>>(32);
 
-        let analysis_result = run_pro_completion(pro_agent, &pro_history).await;
+        let mut pro_history = initial_history.clone();
+        // Create the Pro agent executor with appropriate tools and limits
+        let mut pro_executor = AgentExecutor::new(
+            config.pro_agent.clone(),
+            config.pro_tool_defs.clone(),
+            config.max_pro_iterations,
+        );
 
-        let analysis = match analysis_result {
-             Ok(a) => {
-                 if a.is_empty() {
-                     warn!("Pro agent returned empty analysis. Assuming simple completion.");
-                     "Analysis complete.".to_string()
-                 } else {
-                    pro_history.push(Message::assistant(&a));
-                    yield CoderEvent::AnalysisReceived { analysis: a.clone() };
+        // Set history from previous Pro agent execution
+        pro_executor = pro_executor.with_history(pro_history.clone());
+
+        // Spawn the Pro agent executor task
+        let pro_executor_handle = tokio::spawn(async move {
+            pro_executor.execute(analysis_prompt, pro_tx).await
+        });
+
+        // Process Pro agent events and extract the analysis
+        let mut analysis: Option<String> = None;
+
+        while let Some(event_result) = pro_rx.recv().await {
+            match event_result {
+                Ok(ExecutorEvent::Thinking { text }) => {
+                    // Convert to ProThinking event
+                    yield CoderEvent::ProThinking { text };
+                }
+                Ok(ExecutorEvent::ToolCallAttempted { call }) => {
+                    // Convert to ProToolCall event
+                    yield CoderEvent::ProToolCall {
+                        tool: call.function.name.clone(),
+                        args: call.function.arguments.to_string(),
+                    };
+                }
+                Ok(ExecutorEvent::ToolCallCompleted { id: _, result, tool_name }) => {
+                    // Convert to ProToolResult event
+                    yield CoderEvent::ProToolResult {
+                        tool: tool_name,
+                        result: result.clone(),
+                    };
+                }
+                Ok(ExecutorEvent::Finished { summary }) => {
+                    // Extract the analysis from the finish tool's summary
+                    analysis = Some(summary.clone());
+                    yield CoderEvent::AnalysisReceived { analysis: summary.clone() };
+                }
+                Ok(ExecutorEvent::ExecutionError { error }) => {
+                    // Handle non-fatal errors
+                    yield CoderEvent::Warning {
+                        message: format!("Pro agent tool error during analysis: {}", error)
+                    };
+                }
+                Err(e) => {
+                    // Handle fatal errors
+                    let error_msg = format!("Pro agent analysis failed: {}", e);
+                    error!(error=%e, "Pro agent analysis failed");
+                    yield CoderEvent::SessionFailed { error: error_msg };
+                    return;
+                }
+            }
+        }
+
+        // Wait for the Pro executor to complete
+        let pro_outcome = match pro_executor_handle.await {
+            Ok(outcome) => outcome,
+            Err(e) => {
+                let error_msg = format!("Failed to join Pro agent executor during analysis: {}", e);
+                error!(error=%e, "Pro executor join error during analysis");
+                yield CoderEvent::SessionFailed { error: error_msg };
+                return;
+            }
+        };
+
+        // Update pro_history with the history from the executor
+        pro_history = pro_outcome.history;
+
+        // Ensure we have an analysis
+        let analysis = match analysis {
+            Some(a) => {
+                if a.is_empty() {
+                    warn!("Pro agent returned empty analysis. Assuming simple completion.");
+                    "Analysis complete.".to_string()
+                } else {
                     a
-                 }
-             },
-             Err(e) => {
-                 let coder_error = CoderError::CompletionError(e);
-                 let error_msg = format!("Failed to get analysis from Pro agent: {}", coder_error);
-                 error!(error=%coder_error, "Pro agent analysis failed");
-                 yield CoderEvent::SessionFailed { error: error_msg };
-                 return;
-             }
+                }
+            },
+            None => {
+                let error_msg = CoderError::AgentError("Pro agent did not generate an analysis".to_string()).to_string();
+                error!(error=%error_msg);
+                yield CoderEvent::SessionFailed { error: error_msg };
+                return;
+            }
         };
 
         // --- 4. Session Complete ---
@@ -208,51 +252,6 @@ where
             history: pro_history,
         };
     }
-}
-
-/// Helper to call the Pro agent for planning or analysis.
-#[instrument(name = "pro_completion", skip_all, fields(history_len = history.len()))]
-async fn run_pro_completion<C>(
-    pro_agent: &Agent<C>,
-    history: &[Message],
-) -> Result<String, CompletionError>
-// This returns the rig error directly
-where
-    C: CompletionModel + Clone,
-{
-    if history.is_empty() {
-        return Ok("".to_string());
-    }
-    debug!("Sending request to Pro agent");
-    let builder = pro_agent.completion("", history.to_vec()).await?;
-
-    let response = builder.send().await?;
-    debug!("Received response from Pro agent");
-
-    // Check choice length *before* iterating if needed later
-    let choice_len = response.choice.len();
-
-    let text_response = response
-        .choice
-        .iter() // Use iter() to borrow
-        .filter_map(|c| match c {
-            AssistantContent::Text(text) => Some(text.text.clone()), // Clone text
-            _ => {
-                warn!(pro_tool_call=?c, "Pro agent attempted non-text response (e.g., tool call)");
-                None
-            }
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    // Check collected text length vs original choice length
-    if text_response.is_empty() && choice_len > 0 {
-        warn!("Pro agent returned a non-text response when text was expected.");
-    } else if text_response.is_empty() {
-        debug!("Pro agent returned empty text response.");
-    }
-
-    Ok(text_response)
 }
 
 /// Formats messages into a simple string representation suitable for the Pro agent's analysis prompt.

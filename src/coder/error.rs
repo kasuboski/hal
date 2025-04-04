@@ -29,6 +29,9 @@ pub enum CoderError {
     #[error("Failed to serialize tool arguments: {0}")]
     ToolArgsSerializationError(#[from] serde_json::Error),
 
+    #[error("Agent error: {0}")]
+    AgentError(String),
+
     // Add other specific coder errors as needed
     #[error("Internal coder error: {0}")]
     Internal(String),
