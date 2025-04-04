@@ -175,9 +175,17 @@ impl ShellTools {
 
     /// Get an overview of a code repository
     #[tool(
-        description = "Get a comprehensive overview of the code repository structure and contents. Returns a JSON object containing a summarized overview and file listings with filtered contents. Note: This tool requires read permission for the directory, applies standard code file filtering (ignores binaries, large files, and common exclude patterns like node_modules), limits files to 10KB, and has a 10,000 token cap. Use this tool for initial project exploration or when you need to read multiple files at once from a directory. For detailed examination of specific individual files, use show_file instead. This operation is resource-intensive and will return a large response, but provides an efficient way to understand multiple files in a single operation."
+        description = "Scans and displays the content of multiple files in a directory, providing a comprehensive overview of code and other text files. Returns a JSON object with an 'overview' field containing the formatted content of each file and a 'files' count.
+        This tool is ideal for:
+
+        Initial exploration of unfamiliar codebases
+        Understanding related files as a group
+        Analyzing patterns across multiple files
+        Getting a complete view of smaller projects
+
+        Note: Automatically filters out binary files, large files (>10KB), and common exclusions (like node_modules). Response size is capped at 10,000 tokens. For larger directories, use directory_tree first to understand structure, then show_file for specific files of interest. Can significantly impact context window usage when querying large directories. Requires read permission for the directory."
     )]
-    async fn code_repo_overview(
+    async fn directory_explorer(
         &self,
         #[tool(param)]
         #[schemars(description = "Path to the directory")]
