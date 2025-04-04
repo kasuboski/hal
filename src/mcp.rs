@@ -25,7 +25,6 @@ pub mod tool_core;
 pub mod tool_file;
 pub mod tool_search;
 pub mod tool_shell;
-pub mod tools_rmcp;
 
 use executor::Executor;
 pub use permissions::{PermissionsRef, SessionPermissions, create_permissions};
@@ -81,11 +80,14 @@ use tracing::{info, instrument, warn};
 pub async fn run(name: String, version: String) -> anyhow::Result<()> {
     info!("Starting HAL MCP server: {} v{}", name, version);
 
+    let client = crate::model::Client::new_gemini_free_from_env();
+    let model = client.completion().clone();
+
     // Create state containing permissions and executor
     let state = State::new();
 
     // Create the HAL server with state
-    let hal_server = HalServer::new(state);
+    let hal_server = HalServer::new(state, model);
 
     // Create stdio transport
     let transport = stdio();
@@ -105,16 +107,33 @@ pub async fn run(name: String, version: String) -> anyhow::Result<()> {
 #[derive(Clone)]
 pub struct HalServer {
     state: State,
+    model: Arc<
+        crate::model::RateLimitedCompletionModel<
+            rig::providers::gemini::completion::CompletionModel,
+        >,
+    >,
 }
 
 #[tool(tool_box)]
 impl HalServer {
-    pub fn new(state: State) -> Self {
-        Self { state }
+    pub fn new(
+        state: State,
+        model: crate::model::RateLimitedCompletionModel<
+            rig::providers::gemini::completion::CompletionModel,
+        >,
+    ) -> Self {
+        Self {
+            state,
+            model: Arc::new(model),
+        }
     }
 
     pub fn core_tools(&self) -> tool_core::CoreTools {
-        tool_core::CoreTools::new(self.state.permissions(), self.state.project_path())
+        tool_core::CoreTools::new(
+            self.state.permissions(),
+            self.state.project_path(),
+            self.model.clone(),
+        )
     }
 
     fn file_tools(&self) -> tool_file::FileTools {

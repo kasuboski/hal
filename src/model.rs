@@ -21,7 +21,7 @@
 use std::num::NonZeroU32;
 
 use governor::{Quota, RateLimiter};
-use ratelimited_completion::RateLimitedCompletionModel;
+pub use ratelimited_completion::RateLimitedCompletionModel;
 use ratelimited_embedding::RateLimitedEmbeddingModel;
 use rig::{completion::CompletionModel, embeddings::EmbeddingModel, providers::gemini};
 

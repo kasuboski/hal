@@ -133,7 +133,7 @@ use tracing::instrument; // Keep instrument for main
 
 // --- Prompts (Keep as before or load from config) ---
 const PRO_PROMPT: &str = r"You are a tech lead pairing with a USER and junior developer.
-Your job is to help the junior developer complete their coding task. The junior developer will work on the user request and you will analyze result.
+Your job is to help the junior developer complete their coding task. The junior developer will work on the user request and you will analyze the result.
 This junior developer is also an ai model. It is not as smart as you, but has access to tools that interact with the codebase.
 
 You also have access to tools that can help you gather information and understand the codebase.
