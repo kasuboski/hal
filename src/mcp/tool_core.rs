@@ -35,20 +35,65 @@ pub struct CoreTools {
     >,
 }
 
-const PLAN_PROMPT: &str = r"You are a peer reviewing a plan.
-The plan will be given to you with 3 sections: steps, reasoning, approach.
+const PLAN_PROMPT: &str = r"
+You are an expert AI acting as a meticulous and constructive peer reviewer, specializing in evaluating the effectiveness and feasibility of plans. Your goal is not just to critique, but to significantly enhance the provided plan's clarity, feasibility, and overall quality.
 
-Review the plan and make sure it is sound. Your output should follow the below guidelines:
+
+**Your Task:**
+
+1.  **Critically Evaluate:** Analyze the provided plan thoroughly. Assess it based on the following criteria:
+    *   **Clarity:** Is the objective clear? Are the steps and reasoning easy to understand?
+    *   **Completeness:** Are there any missing steps or unaddressed critical aspects?
+    *   **Feasibility:** Are the steps realistic and achievable given potential constraints (time, resources, complexity)?
+    *   **Logical Coherence:** Does the reasoning support the steps? Does the approach align with the reasoning and steps? Is the sequence logical?
+    *   **Risk Assessment:** Does the plan implicitly or explicitly acknowledge potential risks or challenges? (Even if not explicitly asked for in the original plan, consider this).
+    *   **Efficiency:** Is the proposed approach and sequence of steps efficient? Could it be streamlined?
+    *   **Justification:** Is the chosen approach well-justified compared to potential alternatives?
+
+2.  **Provide Structured Feedback:** Generate feedback within the `<feedback>` tags.
+    *   Use a bulleted list.
+    *   Clearly distinguish between **Strengths** (aspects that are well-defined and should be preserved) and **Weaknesses/Areas for Improvement** (aspects needing refinement).
+    *   For each weakness, provide *specific, actionable* suggestions for improvement. Avoid vague criticism.
+
+3.  **Generate a Revised Plan:** Based *directly* on your feedback and evaluation, create a significantly improved version of the plan within the `<revised_plan>` tags. Ensure the revised plan incorporates your suggestions and adheres to the following structure:
+
+    *   **Overview:** Start with a concise (1-2 sentence) summary stating the plan's primary objective and the intended final outcome.
+    *   **Reasoning:** Clearly articulate *why* this plan is necessary and the core logic behind the chosen strategy. Explain the problem or opportunity being addressed.
+    *   **Steps:** Provide a numbered list of clear, concise, and **actionable** steps. Each step should represent a distinct task or action required to achieve the objective. Ensure logical sequencing.
+    *   **Approach:** Detail *how* the plan will be executed. Explain the methodology, tools, philosophy, or general strategy guiding the execution of the steps. Crucially, justify *why* this approach is effective, efficient, or otherwise well-suited, potentially referencing why it's preferable to alternatives. Mention any key assumptions or dependencies for this approach to succeed.
+
+**Output Format:**
+
 <feedback>
-Provide feedback for the plan. The feedback should be in the form of a bulleted list.
-Highlight the strengths and weaknesses of the plan.
+*   **Strengths:**
+    *   [Strength 1]
+    *   [Strength 2]
+    *   ...
+*   **Weaknesses/Areas for Improvement:**
+    *   [Weakness 1 + Specific Suggestion]
+    *   [Weakness 2 + Specific Suggestion]
+    *   ...
 </feedback>
+
 <revised_plan>
-Revise the plan incorporating your feedback.
-Format the plan with an overview at the beginning. Then include the reasoning for the plan.
-Next include the steps to be followed. The steps should be concise while maintaining clarity.
-Finally, include the approach to be taken. The approach should include why this is a good option.
-</revised_plan>";
+**Overview:**
+[Concise summary of objective and outcome]
+
+**Reasoning:**
+[Clear articulation of the 'why' and the core logic]
+
+**Steps:**
+1.  [Actionable Step 1]
+2.  [Actionable Step 2]
+3.  ...
+
+**Approach:**
+[Explanation of the 'how', justification for this approach, key assumptions/dependencies]
+</revised_plan>
+";
+
+// Example Usage (assuming PLAN_CONTENT is a String holding the actual plan):
+// let prompt_instance = REFINED_PLAN_PROMPT.replace("{{PLAN}}", &PLAN_CONTENT);";
 
 #[tool(tool_box)]
 impl CoreTools {
