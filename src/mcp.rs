@@ -60,6 +60,7 @@ use tracing::{info, instrument, warn};
 ///
 /// * `name` - The name of the server (used for logging/identification).
 /// * `version` - The version string of the server (used for logging/identification).
+/// * `no_file_tools` - Flag to disable file tools.
 ///
 /// # Returns
 ///
@@ -72,12 +73,13 @@ use tracing::{info, instrument, warn};
 /// # async fn main() -> anyhow::Result<()> {
 /// let name = "My MCP Server".to_string();
 /// let version = "0.1.0".to_string();
-/// hal::mcp::run(name, version).await?; // Call the actual function
+/// let no_file_tools = false;
+/// hal::mcp::run(name, version, no_file_tools).await?; // Call the actual function
 /// # Ok(())
 /// # }
 /// ```
 #[instrument]
-pub async fn run(name: String, version: String) -> anyhow::Result<()> {
+pub async fn run(name: String, version: String, no_file_tools: bool) -> anyhow::Result<()> {
     info!("Starting HAL MCP server: {} v{}", name, version);
 
     let client = crate::model::Client::new_gemini_free_from_env();
@@ -87,7 +89,7 @@ pub async fn run(name: String, version: String) -> anyhow::Result<()> {
     let state = State::new();
 
     // Create the HAL server with state
-    let hal_server = HalServer::new(state, model);
+    let hal_server = HalServer::new(state, model, no_file_tools);
 
     // Create stdio transport
     let transport = stdio();
@@ -112,6 +114,7 @@ pub struct HalServer {
             rig::providers::gemini::completion::CompletionModel,
         >,
     >,
+    no_file_tools: bool,
 }
 
 #[tool(tool_box)]
@@ -121,10 +124,12 @@ impl HalServer {
         model: crate::model::RateLimitedCompletionModel<
             rig::providers::gemini::completion::CompletionModel,
         >,
+        no_file_tools: bool,
     ) -> Self {
         Self {
             state,
             model: Arc::new(model),
+            no_file_tools,
         }
     }
 
@@ -156,6 +161,29 @@ impl HalServer {
 // Implement ServerHandler for the main server
 impl rmcp::ServerHandler for HalServer {
     fn get_info(&self) -> ServerInfo {
+        let instructions = if self.no_file_tools {
+            r#"HAL MCP Server provides secure access to shell operations with a permissions system.
+
+1. INITIALIZATION: Call the `init` tool first with a project directory path to establish context and receive initial read/write permissions for that directory.
+
+2. PERMISSIONS: Before running commands, you must request explicit permissions:
+   - Use `request_permission` with operation='execute' and path=<command> for shell command execution.
+
+3. SHELL OPERATIONS: After execution permission, you can use `execute_shell_command`.
+
+Permissions persist throughout your session once granted. The system enforces security by limiting access to only explicitly permitted commands."#.to_string()
+        } else {
+            "HAL MCP Server provides secure access to file and shell operations with a permissions system. \
+\n1. INITIALIZATION: Call the `init` tool first with a project directory path to establish context \
+and receive initial read/write permissions for that directory. \
+\n2. PERMISSIONS: Before accessing files or running commands, you must request explicit permissions: \
+   - Use `request_permission` with operation='read' and path=<directory> for file reading operations \
+   - Use `request_permission` with operation='write' and path=<directory> for file writing operations \
+   - Use `request_permission` with operation='execute' and path=<command> for shell command execution \
+\n3. FILE OPERATIONS: After permissions are granted, you can use tools like `show_file`, `search_in_file`, and `write_file`. \
+\n4. SHELL OPERATIONS: After execution permission, you can use `execute_shell_command`. \
+\nPermissions persist throughout your session once granted. The system enforces security by limiting access to only explicitly permitted directories and commands.".to_string()
+        };
         ServerInfo {
             protocol_version: Default::default(),
             capabilities: ServerCapabilities::builder()
@@ -166,20 +194,7 @@ impl rmcp::ServerHandler for HalServer {
                 name: "HAL".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
-            instructions: Some(
-                "HAL MCP Server provides secure access to file and shell operations with a permissions system. \
-                \n\n1. INITIALIZATION: Call the `init` tool first with a project directory path to establish context \
-                and receive initial read/write permissions for that directory. \
-                \n\n2. PERMISSIONS: Before accessing files or running commands, you must request explicit permissions: \
-                \n   - Use `request_permission` with operation='read' and path=<directory> for file reading operations \
-                \n   - Use `request_permission` with operation='write' and path=<directory> for file writing operations \
-                \n   - Use `request_permission` with operation='execute' and path=<command> for shell command execution \
-                \n\n3. FILE OPERATIONS: After permissions are granted, you can use tools like `show_file`, `search_in_file`, \
-                `edit_file`, and `write_file`. \
-                \n\n4. SHELL OPERATIONS: After execution permission, you can use `execute_shell_command`. \
-                \n\nPermissions persist throughout your session once granted. The system enforces security \
-                by limiting access to only explicitly permitted directories and commands.".to_string(),
-            ),
+            instructions: Some(instructions),
         }
     }
 
@@ -191,7 +206,9 @@ impl rmcp::ServerHandler for HalServer {
         async {
             let mut all_tools = Vec::new();
             all_tools.extend(tool_core::CoreTools::get_tool_box().list());
-            all_tools.extend(tool_file::FileTools::get_tool_box().list());
+            if !self.no_file_tools {
+                all_tools.extend(tool_file::FileTools::get_tool_box().list());
+            }
             all_tools.extend(tool_shell::ShellTools::get_tool_box().list());
             all_tools.extend(tool_search::SearchTools::get_tool_box().list());
             Ok(ListToolsResult {

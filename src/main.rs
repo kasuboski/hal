@@ -217,6 +217,10 @@ struct McpArgs {
     /// Server version
     #[arg(short, long, default_value = "1.0.0")]
     version: String,
+
+    /// Disable file tools
+    #[arg(long, default_value = "false")]
+    no_file_tools: bool,
 }
 
 #[tokio::main]
@@ -700,7 +704,7 @@ async fn count_chunks_to_reembed(
 async fn mcp_command(args: McpArgs) -> anyhow::Result<()> {
     info!("Starting HAL MCP server...");
 
-    hal::mcp::run(args.name, args.version)
+    hal::mcp::run(args.name, args.version, args.no_file_tools)
         .await
         .context("error running MCP server")
 }
