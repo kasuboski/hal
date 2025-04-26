@@ -65,12 +65,18 @@ impl ShellTools {
 
         #[tool(param)]
         #[schemars(description = "Working directory for the command (optional)")]
-        working_directory: Option<String>,
+        working_directory: String,
     ) -> Result<CallToolResult, Error> {
         // Parameter validation
         if command.trim().is_empty() {
             return Err(Error::invalid_request("Command cannot be empty", None));
         }
+
+        let working_directory = if working_directory.is_empty() {
+            None
+        } else {
+            Some(working_directory)
+        };
 
         // Extract the program name to verify permissions
         let program = command.split_whitespace().next().unwrap_or("");
